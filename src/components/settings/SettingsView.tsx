@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Upload,
   RotateCcw,
@@ -11,17 +11,25 @@ import {
   FileCode,
   Globe,
   Shield,
+  Languages,
+  Plus,
+  Pencil,
+  Wallet,
 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
-import { SUPPORTED_CURRENCIES } from '../../utils/formatters';
+import { useTranslation } from '../../hooks/useTranslation';
+import { formatCurrency, SUPPORTED_CURRENCIES } from '../../utils/formatters';
 import {
   exportToJSON,
   exportTransactionsToCSV,
   parseJSONBackup,
   parseCSVTransactions,
 } from '../../utils/exportImport';
+import { Language } from '../../locales/translations';
+import { Account, AccountType } from '../../types/finance';
+import { AccountModal } from './AccountModal';
 
 export const SettingsView: React.FC = () => {
   const {
@@ -37,12 +45,16 @@ export const SettingsView: React.FC = () => {
     clearAllData,
     restoreFromBackup,
     addTransaction,
+    deleteAccount,
   } = useFinance();
   const { theme, setTheme } = useTheme();
   const { showToast } = useToast();
+  const { t, language, setLanguage } = useTranslation();
 
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [accountToEdit, setAccountToEdit] = useState<Account | null>(null);
 
   const handleExportJSON = () => {
     exportToJSON({
@@ -56,12 +68,12 @@ export const SettingsView: React.FC = () => {
       subscriptions,
       settings,
     });
-    showToast('success', 'Backup Exported', 'Full JSON financial backup saved.');
+    showToast('success', t('backupExported'), t('backupExportedDesc'));
   };
 
   const handleExportCSV = () => {
     exportTransactionsToCSV(transactions, categories, accounts);
-    showToast('success', 'CSV Exported', 'Transactions spreadsheet downloaded.');
+    showToast('success', t('csvExported'), t('csvExportedDesc'));
   };
 
   const handleImportJSON = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -70,9 +82,9 @@ export const SettingsView: React.FC = () => {
     try {
       const data = await parseJSONBackup(file);
       restoreFromBackup(data);
-      showToast('success', 'Backup Restored', 'All financial data has been successfully imported.');
+      showToast('success', t('backupRestored'), t('backupRestoredDesc'));
     } catch (err: unknown) {
-      showToast('error', 'Import Failed', err instanceof Error ? err.message : 'Invalid backup file format.');
+      showToast('error', t('importFailed'), err instanceof Error ? err.message : t('invalidBackup'));
     } finally {
       if (jsonInputRef.current) jsonInputRef.current.value = '';
     }
@@ -84,10 +96,9 @@ export const SettingsView: React.FC = () => {
     try {
       const parsedTxs = await parseCSVTransactions(file);
       if (parsedTxs.length === 0) {
-        showToast('warning', 'No Records', 'No valid transaction records found in CSV.');
+        showToast('warning', t('noRecords'), t('noRecordsDesc'));
         return;
       }
-
       parsedTxs.forEach((tx) => {
         addTransaction({
           type: tx.type || 'expense',
@@ -95,17 +106,53 @@ export const SettingsView: React.FC = () => {
           categoryId: categories.find((c) => c.type === (tx.type || 'expense'))?.id || categories[0].id,
           accountId: accounts[0]?.id || 'acc_checking',
           date: tx.date || new Date().toISOString().split('T')[0],
-          merchant: tx.merchant || 'Imported Transaction',
+          merchant: tx.merchant || t('importedTransaction'),
           description: tx.description,
           tags: ['imported-csv'],
         });
       });
-
-      showToast('success', 'CSV Imported', `Imported ${parsedTxs.length} transactions.`);
+      showToast('success', t('csvImported'), t('csvImportedDesc', { count: parsedTxs.length }));
     } catch (err: unknown) {
-      showToast('error', 'CSV Import Failed', err instanceof Error ? err.message : 'Invalid CSV file format.');
+      showToast('error', t('csvImportFailed'), err instanceof Error ? err.message : t('invalidCsv'));
     } finally {
       if (csvInputRef.current) csvInputRef.current.value = '';
+    }
+  };
+
+  const themeOptions = [
+    { id: 'light', label: t('themeLight') },
+    { id: 'dark', label: t('themeDark') },
+    { id: 'oled', label: t('themeOled') },
+    { id: 'system', label: t('themeSystem') },
+  ];
+
+  const accountTypeLabel = (type: AccountType) => {
+    const keys = {
+      cash: 'accountTypeCash',
+      bank: 'accountTypeBank',
+      credit_card: 'accountTypeCreditCard',
+      savings: 'accountTypeSavings',
+      crypto: 'accountTypeCrypto',
+      e_wallet: 'accountTypeEWallet',
+    } as const;
+    return t(keys[type]);
+  };
+
+  const handleDeleteAccount = (account: Account) => {
+    if (accounts.length === 1) {
+      alert(t('lastAccountCannotDelete'));
+      return;
+    }
+
+    const isUsed = transactions.some((transaction) => transaction.accountId === account.id || transaction.toAccountId === account.id)
+      || subscriptions.some((subscription) => subscription.accountId === account.id);
+    if (isUsed) {
+      alert(t('accountInUse'));
+      return;
+    }
+
+    if (window.confirm(t('deleteAccountConfirm', { name: account.name }))) {
+      deleteAccount(account.id);
     }
   };
 
@@ -113,24 +160,45 @@ export const SettingsView: React.FC = () => {
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
       <div>
-        <h3 className="text-lg font-bold text-slate-900 dark:text-white">Settings & Preferences</h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Personalize currency, visuals, privacy protection, and manage local data backup
-        </p>
+        <h3 className="text-lg font-bold text-slate-900 dark:text-white">{t('settingsHeader')}</h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{t('settingsDesc')}</p>
       </div>
 
-      {/* 1. General Preferences Card */}
+      {/* 1. General & Localization Card */}
       <div className="p-5 rounded-2xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
         <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
           <Globe className="w-4 h-4 text-emerald-500" />
-          <span>General & Localization</span>
+          <span>{t('generalLocalization')}</span>
         </h4>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* App Language Switcher */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1.5">
+              <Languages className="w-3.5 h-3.5 text-emerald-500" />
+              {t('appLanguage')}
+            </label>
+            <div className="flex items-center gap-2">
+              {(['en', 'id'] as Language[]).map((lang) => (
+                <button
+                  key={lang}
+                  onClick={() => setLanguage(lang)}
+                  className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-bold border transition-all ${
+                    language === lang
+                      ? 'bg-emerald-500/10 border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-400'
+                  }`}
+                >
+                  {lang === 'en' ? '🇬🇧 English' : '🇮🇩 Indonesia'}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Primary Currency */}
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-              Primary Currency
+              {t('primaryCurrency')}
             </label>
             <select
               value={settings.currency}
@@ -148,7 +216,7 @@ export const SettingsView: React.FC = () => {
           {/* Date Format */}
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-              Date Format
+              {t('dateFormat')}
             </label>
             <select
               value={settings.dateFormat}
@@ -167,36 +235,100 @@ export const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Appearance & Haptics Card */}
+      {/* 2. Accounts & payment methods */}
+      <div className="p-5 rounded-2xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-emerald-500" />
+              <span>{t('accountsPaymentMethods')}</span>
+            </h4>
+            <p className="text-xs text-slate-400 mt-1">{t('accountsPaymentMethodsDesc')}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setAccountToEdit(null);
+              setIsAccountModalOpen(true);
+            }}
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            {t('addAccount')}
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {accounts.map((account) => (
+            <div key={account.id} className="flex items-center gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/60">
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold shadow-sm shrink-0"
+                style={{ backgroundColor: account.color }}
+              >
+                {account.name.slice(0, 1).toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{account.name}</p>
+                <p className="text-[11px] text-slate-400 truncate">
+                  {accountTypeLabel(account.type)}{account.accountNumberMasked ? ` • ${account.accountNumberMasked}` : ''}
+                </p>
+                <p className="text-sm font-mono font-bold text-slate-700 dark:text-slate-200 mt-1">
+                  {formatCurrency(account.balance, account.currency, settings.privacyMode)}
+                </p>
+              </div>
+              <div className="flex items-center gap-1 self-start">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAccountToEdit(account);
+                    setIsAccountModalOpen(true);
+                  }}
+                  aria-label={t('editAccount')}
+                  title={t('editAccount')}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-colors"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteAccount(account)}
+                  aria-label={t('delete')}
+                  title={t('delete')}
+                  className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 3. Appearance & Privacy Card */}
       <div className="p-5 rounded-2xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
         <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
           <Laptop className="w-4 h-4 text-emerald-500" />
-          <span>Appearance & Privacy</span>
+          <span>{t('appearancePrivacy')}</span>
         </h4>
 
-        {/* Theme mode selection */}
+        {/* Theme Mode */}
         <div>
           <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">
-            Theme Mode
+            {t('themeMode')}
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {[
-              { id: 'light', label: 'Light' },
-              { id: 'dark', label: 'Dark' },
-              { id: 'oled', label: 'OLED Black' },
-              { id: 'system', label: 'System' },
-            ].map((t) => (
+            {themeOptions.map((opt) => (
               <button
-                key={t.id}
+                key={opt.id}
                 type="button"
-                onClick={() => setTheme(t.id as any)}
+                onClick={() => setTheme(opt.id as 'light' | 'dark' | 'oled' | 'system')}
                 className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
-                  theme === t.id
+                  theme === opt.id
                     ? 'bg-emerald-500/10 border-emerald-500 text-emerald-600 dark:text-emerald-400'
                     : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-400'
                 }`}
               >
-                {t.label}
+                {opt.label}
               </button>
             ))}
           </div>
@@ -204,15 +336,15 @@ export const SettingsView: React.FC = () => {
 
         {/* Toggles */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-          {/* Privacy mode toggle */}
+          {/* Privacy Mode */}
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/60">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
                 <Eye className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-900 dark:text-white">Privacy Mode</p>
-                <p className="text-[11px] text-slate-400">Mask all account numbers and balance values</p>
+                <p className="text-xs font-bold text-slate-900 dark:text-white">{t('privacyMode')}</p>
+                <p className="text-[11px] text-slate-400">{t('privacyModeDesc')}</p>
               </div>
             </div>
             <input
@@ -223,15 +355,15 @@ export const SettingsView: React.FC = () => {
             />
           </div>
 
-          {/* Sound effects toggle */}
+          {/* Sound Effects */}
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/60">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
                 <Volume2 className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-900 dark:text-white">Haptic Sound Effects</p>
-                <p className="text-[11px] text-slate-400">Audio chimes for milestones and actions</p>
+                <p className="text-xs font-bold text-slate-900 dark:text-white">{t('hapticSound')}</p>
+                <p className="text-[11px] text-slate-400">{t('hapticSoundDesc')}</p>
               </div>
             </div>
             <input
@@ -244,17 +376,14 @@ export const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. Data Portability, Backup & Restore Card */}
+      {/* 4. Data Backup Card */}
       <div className="p-5 rounded-2xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
         <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
           <Shield className="w-4 h-4 text-emerald-500" />
-          <span>Data Backup, Export & Restore</span>
+          <span>{t('dataBackupRestore')}</span>
         </h4>
-        <p className="text-xs text-slate-400">
-          Your financial data is stored 100% locally and privately in your browser. You can export complete backups anytime.
-        </p>
+        <p className="text-xs text-slate-400">{t('dataStorageNotice')}</p>
 
-        {/* Action Buttons */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {/* Export JSON */}
           <button
@@ -262,7 +391,7 @@ export const SettingsView: React.FC = () => {
             className="flex items-center justify-center gap-2 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 transition-colors"
           >
             <FileCode className="w-4 h-4 text-cyan-500" />
-            <span>Export Full Backup (JSON)</span>
+            <span>{t('exportFullBackup')}</span>
           </button>
 
           {/* Export CSV */}
@@ -271,86 +400,83 @@ export const SettingsView: React.FC = () => {
             className="flex items-center justify-center gap-2 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 transition-colors"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
-            <span>Export Ledger as (CSV)</span>
+            <span>{t('exportLedgerCsv')}</span>
           </button>
 
           {/* Import JSON */}
           <div>
-            <input
-              type="file"
-              ref={jsonInputRef}
-              accept=".json"
-              onChange={handleImportJSON}
-              className="hidden"
-            />
+            <input type="file" ref={jsonInputRef} accept=".json" onChange={handleImportJSON} className="hidden" />
             <button
               onClick={() => jsonInputRef.current?.click()}
               className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 transition-colors"
             >
               <Upload className="w-4 h-4 text-indigo-500" />
-              <span>Import Backup (JSON)</span>
+              <span>{t('importBackupJson')}</span>
             </button>
           </div>
 
           {/* Import CSV */}
           <div>
-            <input
-              type="file"
-              ref={csvInputRef}
-              accept=".csv"
-              onChange={handleImportCSV}
-              className="hidden"
-            />
+            <input type="file" ref={csvInputRef} accept=".csv" onChange={handleImportCSV} className="hidden" />
             <button
               onClick={() => csvInputRef.current?.click()}
               className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 transition-colors"
             >
               <Upload className="w-4 h-4 text-amber-500" />
-              <span>Import Transactions (CSV)</span>
+              <span>{t('importTransactionsCsv')}</span>
             </button>
           </div>
         </div>
 
-        {/* Reset & Restore Controls */}
         <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
           <button
             onClick={() => {
-              if (window.confirm('Restore demo sample data? This will overwrite your current dataset.')) {
+              if (window.confirm(t('restoreDemoConfirm'))) {
                 resetToSampleData();
-                showToast('info', 'Demo Data Restored', 'Sample financial records populated.');
+                showToast('info', t('demoDataRestored'), t('demoDataRestoredDesc'));
               }
             }}
             className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-emerald-500 transition-colors"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Restore Demo Sample Records</span>
+            <span>{t('restoreDemoRecords')}</span>
           </button>
 
           <button
             onClick={() => {
-              if (window.confirm('WARNING: Are you sure you want to clear ALL data? This cannot be undone unless you have a backup.')) {
+              if (
+                window.confirm(
+                  t('clearDataConfirm')
+                )
+              ) {
                 clearAllData();
-                showToast('error', 'All Data Cleared', 'Your workspace is now empty.');
+                showToast('error', t('allDataCleared'), t('allDataClearedDesc'));
               }
             }}
             className="flex items-center gap-1.5 text-xs font-semibold text-rose-500 hover:text-rose-600 transition-colors"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            <span>Clear All Data</span>
+            <span>{t('clearAllData')}</span>
           </button>
         </div>
       </div>
 
-      {/* 4. GitHub Pages Deployment Info Card */}
+      {/* 5. GitHub Pages Info Card */}
       <div className="p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs space-y-2">
         <h4 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-          <span>GitHub Pages (`github.io`) Ready</span>
+          <span>{t('githubPagesReady')}</span>
         </h4>
         <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
-          This application is built with relative base paths (`./`) and pure client-side LocalStorage. You can deploy it to any GitHub repository and host it for free at <code className="font-mono bg-white/40 dark:bg-slate-800/40 px-1 py-0.5 rounded">https://&lt;username&gt;.github.io/&lt;repository&gt;/</code>.
+          {t('githubPagesDesc')}
         </p>
       </div>
+
+      <AccountModal
+        isOpen={isAccountModalOpen}
+        onClose={() => setIsAccountModalOpen(false)}
+        accountToEdit={accountToEdit}
+      />
     </div>
   );
 };

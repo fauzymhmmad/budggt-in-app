@@ -19,9 +19,11 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { Modal } from './components/ui/Modal';
 import { Transaction } from './types/finance';
 import { CalendarCheck, BarChart3, Calculator, Settings } from 'lucide-react';
+import { useTranslation } from './hooks/useTranslation';
 
 const MainAppContent: React.FC = () => {
   const { activeTab, setActiveTab, togglePrivacyMode } = useFinance();
+  const { t } = useTranslation();
 
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
@@ -111,16 +113,16 @@ const MainAppContent: React.FC = () => {
       <Modal
         isOpen={isMobileMoreOpen}
         onClose={() => setIsMobileMoreOpen(false)}
-        title="More Features"
-        subtitle="Explore additional financial tools and settings"
+        title={t('mobileMoreTitle')}
+        subtitle={t('mobileMoreSubtitle')}
         maxWidth="sm"
       >
         <div className="grid grid-cols-2 gap-3 py-2">
           {[
-            { id: 'subscriptions', label: 'Recurring Bills', icon: CalendarCheck, color: 'text-indigo-500' },
-            { id: 'analytics', label: 'Analytics', icon: BarChart3, color: 'text-emerald-500' },
-            { id: 'tools', label: 'Calculators', icon: Calculator, color: 'text-purple-500' },
-            { id: 'settings', label: 'Settings', icon: Settings, color: 'text-cyan-500' },
+            { id: 'subscriptions', label: t('tabSubscriptions'), icon: CalendarCheck, color: 'text-indigo-500' },
+            { id: 'analytics', label: t('tabAnalytics'), icon: BarChart3, color: 'text-emerald-500' },
+            { id: 'tools', label: t('tabTools'), icon: Calculator, color: 'text-purple-500' },
+            { id: 'settings', label: t('tabSettings'), icon: Settings, color: 'text-cyan-500' },
           ].map((item) => {
             const Icon = item.icon;
             return (
@@ -150,11 +152,11 @@ const MainAppContent: React.FC = () => {
 export function App() {
   return (
     <ThemeProvider>
-      <ToastProvider>
-        <FinanceProvider>
+      <FinanceProvider>
+        <ToastProvider>
           <MainAppContent />
-        </FinanceProvider>
-      </ToastProvider>
+        </ToastProvider>
+      </FinanceProvider>
     </ThemeProvider>
   );
 }

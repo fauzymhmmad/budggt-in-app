@@ -3,6 +3,7 @@ import { Calendar, Check, ExternalLink, Edit2, Trash2, Clock } from 'lucide-reac
 import { useFinance } from '../../context/FinanceContext';
 import { Subscription } from '../../types/finance';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import { useTranslation } from '../../hooks/useTranslation';
 
 interface SubscriptionCardProps {
   sub: Subscription;
@@ -18,6 +19,7 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
   onMarkPaid,
 }) => {
   const { categories, accounts, settings } = useFinance();
+  const { t } = useTranslation();
 
   const category = categories.find((c) => c.id === sub.categoryId);
   const account = accounts.find((a) => a.id === sub.accountId);
@@ -63,7 +65,7 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
                 )}
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                {category?.name || 'Subscription'} • {account?.name || 'Main Account'}
+                {category?.name || t('subscription')} • {account?.name || t('mainAccount')}
               </p>
             </div>
           </div>
@@ -72,14 +74,14 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
             <button
               onClick={onEdit}
               className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              title="Edit"
+              title={t('edit')}
             >
               <Edit2 className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={onDelete}
               className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              title="Delete"
+              title={t('delete')}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -92,12 +94,12 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
             <div className="text-xl font-bold font-mono text-slate-900 dark:text-white">
               {formatCurrency(sub.amount, settings.currency, settings.privacyMode)}
               <span className="text-xs text-slate-400 font-sans font-normal ml-1">
-                / {sub.billingCycle}
+                / {t(sub.billingCycle)}
               </span>
             </div>
             {sub.billingCycle !== 'monthly' && (
               <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-                ~{formatCurrency(monthlyEquivalent, settings.currency, settings.privacyMode)}/mo
+                ~{formatCurrency(monthlyEquivalent, settings.currency, settings.privacyMode)}{t('perMonth')}
               </div>
             )}
           </div>
@@ -111,12 +113,12 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
           >
             <Clock className="w-3 h-3" />
             {diffDays === 0
-              ? 'Due Today'
+              ? t('dueToday')
               : diffDays === 1
-              ? 'Due Tomorrow'
+              ? t('dueTomorrow')
               : diffDays > 1
-              ? `In ${diffDays} days`
-              : 'Past Due'}
+              ? t('inDays', { days: diffDays })
+              : t('pastDue')}
           </span>
         </div>
       </div>
@@ -133,7 +135,7 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
           className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold active:scale-95 transition-all"
         >
           <Check className="w-3.5 h-3.5" />
-          <span>Mark Paid</span>
+          <span>{t('markPaid')}</span>
         </button>
       </div>
     </div>

@@ -1,8 +1,8 @@
-# 💎 AuraBudget — Modern Personal Finance & Budget Manager
+# 💎 Budggt.in — Modern Personal Finance & Budget Manager
 
 > A sleek, privacy-focused, and accessible personal finance web application with fluid transitions, smart budget guardrails, goal tracking, and built for 100% zero-configuration hosting on **GitHub Pages (`github.io`)**.
 
-![AuraBudget Banner](./public/favicon.svg)
+![Budggt.in Banner](./public/favicon.svg)
 
 ---
 
@@ -57,8 +57,8 @@
 ## 🚀 Quick Start (Local Development)
 
 ```bash
-# 1. Navigate to project directory
-cd aurabudget
+# 1. Navigate to the project directory
+cd <your-project-directory>
 
 # 2. Install dependencies
 npm install
@@ -77,14 +77,14 @@ npm run build
 
 ## 🌐 Deploying to GitHub Pages (`github.io`)
 
-AuraBudget is configured with relative base paths (`base: './'`) in `vite.config.ts`, which makes it work flawlessly on any GitHub Pages subpath (e.g. `https://<username>.github.io/<repo-name>/`).
+Budggt.in is configured with relative base paths (`base: './'`) in `vite.config.ts`, which makes it work flawlessly on any GitHub Pages subpath (e.g. `https://<username>.github.io/<repo-name>/`).
 
 ### Option 1: Automated Deployment via GitHub Actions (Recommended)
 1. Push this repository to GitHub:
    ```bash
    git init
    git add .
-   git commit -m "feat: initial AuraBudget release"
+   git commit -m "feat: initial Budggt.in release"
    git branch -M main
    git remote add origin https://github.com/<your-username>/<your-repo-name>.git
    git push -u origin main
@@ -115,7 +115,7 @@ npm run build
 
 ## 🔒 Privacy & Local-First Architecture
 
-AuraBudget respects your privacy:
+Budggt.in respects your privacy:
 - **No Remote Servers or Trackers**: All financial transactions and account balances stay strictly stored in your browser's `localStorage`.
 - **Offline Ready**: Operates completely without an active internet connection.
 - **Portability**: Export full JSON backups or CSV files anytime to keep your data safe.

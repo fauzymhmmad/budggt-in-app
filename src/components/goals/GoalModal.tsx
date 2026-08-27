@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, Calendar } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
+import { CurrencyIcon } from '../ui/CurrencyIcon';
 import { useFinance } from '../../context/FinanceContext';
 import { SavingsGoal } from '../../types/finance';
+import { useTranslation } from '../../hooks/useTranslation';
 
 interface GoalModalProps {
   isOpen: boolean;
@@ -27,6 +29,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
   goalToEdit,
 }) => {
   const { addGoal, updateGoal, settings } = useFinance();
+  const { t } = useTranslation();
 
   const [name, setName] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
@@ -65,12 +68,12 @@ export const GoalModal: React.FC<GoalModalProps> = ({
     const currentNum = parseFloat(currentAmount) || 0;
 
     if (isNaN(targetNum) || targetNum <= 0) {
-      alert('Please specify a valid positive target amount.');
+      alert(t('validGoalAmount'));
       return;
     }
 
     if (!name.trim()) {
-      alert('Please enter a goal title.');
+      alert(t('goalTitleRequired'));
       return;
     }
 
@@ -104,20 +107,20 @@ export const GoalModal: React.FC<GoalModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={goalToEdit ? 'Edit Savings Goal' : 'Create New Savings Goal'}
-      subtitle="Track your progress towards life milestones and big purchases"
+      title={goalToEdit ? t('editSavingsGoal') : t('createSavingsGoal')}
+      subtitle={t('goalModalSubtitle')}
       maxWidth="md"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Goal Name */}
         <div>
           <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-            Goal Title / Purpose
+            {t('goalTitle')}
           </label>
           <input
             type="text"
             required
-            placeholder="e.g. Emergency Fund, Trip to Japan, New Car"
+            placeholder={t('goalNamePlaceholder')}
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
@@ -129,10 +132,10 @@ export const GoalModal: React.FC<GoalModalProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-              Target Goal ({settings.currency})
+              {t('targetGoal')} ({settings.currency})
             </label>
             <div className="relative">
-              <DollarSign className="w-4 h-4 text-emerald-500 absolute left-3 top-3 pointer-events-none" />
+              <CurrencyIcon currency={settings.currency} className="w-4 h-4 text-emerald-500 absolute left-3 top-3 pointer-events-none" />
               <input
                 type="number"
                 step="any"
@@ -147,10 +150,10 @@ export const GoalModal: React.FC<GoalModalProps> = ({
 
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-              Currently Saved ({settings.currency})
+              {t('currentlySaved')} ({settings.currency})
             </label>
             <div className="relative">
-              <DollarSign className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+              <CurrencyIcon currency={settings.currency} className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
               <input
                 type="number"
                 step="any"
@@ -167,7 +170,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-              Target Completion Date
+              {t('targetCompletionDate')}
             </label>
             <div className="relative">
               <input
@@ -183,20 +186,20 @@ export const GoalModal: React.FC<GoalModalProps> = ({
 
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-              Category Tag
+              {t('categoryTag')}
             </label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 cursor-pointer"
             >
-              <option value="Safety">Safety & Emergency</option>
-              <option value="Travel">Travel & Vacation</option>
-              <option value="Gear">Tech & Electronics</option>
-              <option value="Investing">Investing & Wealth</option>
-              <option value="Real Estate">Housing & Property</option>
-              <option value="Vehicle">Car & Transport</option>
-              <option value="Other">Other Milestone</option>
+              <option value="Safety">{t('categorySafety')}</option>
+              <option value="Travel">{t('categoryTravel')}</option>
+              <option value="Gear">{t('categoryGear')}</option>
+              <option value="Investing">{t('categoryInvesting')}</option>
+              <option value="Real Estate">{t('categoryRealEstate')}</option>
+              <option value="Vehicle">{t('categoryVehicle')}</option>
+              <option value="Other">{t('categoryOther')}</option>
             </select>
           </div>
         </div>
@@ -204,7 +207,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
         {/* Color Accent Picker */}
         <div>
           <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-            Color Theme
+            {t('colorTheme')}
           </label>
           <div className="flex items-center gap-2.5">
             {GOAL_COLORS.map((c) => (
@@ -224,11 +227,11 @@ export const GoalModal: React.FC<GoalModalProps> = ({
         {/* Notes */}
         <div>
           <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-            Goal Notes & Plan
+            {t('goalNotes')}
           </label>
           <textarea
             rows={2}
-            placeholder="e.g. Save $300/mo by cutting down delivery apps"
+            placeholder={t('goalNotesPlaceholder')}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
@@ -238,10 +241,10 @@ export const GoalModal: React.FC<GoalModalProps> = ({
         {/* Actions */}
         <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
           <Button variant="secondary" type="button" onClick={onClose}>
-            Cancel
+            {t('cancel')}
           </Button>
           <Button variant="primary" type="submit">
-            {goalToEdit ? 'Update Goal' : 'Create Goal'}
+            {goalToEdit ? t('updateGoal') : t('createGoal')}
           </Button>
         </div>
       </form>

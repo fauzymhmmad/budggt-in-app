@@ -154,7 +154,8 @@ export function calculateCategorySpending(
 
 export function calculateCashflowTrends(
   transactions: Transaction[],
-  days: number = 30
+  days: number = 30,
+  locale: string = 'en-US'
 ): { date: string; displayDate: string; income: number; expense: number; net: number }[] {
   const result: { date: string; displayDate: string; income: number; expense: number; net: number }[] = [];
   const now = new Date();
@@ -164,7 +165,7 @@ export function calculateCashflowTrends(
     const d = new Date();
     d.setDate(now.getDate() - i);
     const dateStr = d.toISOString().split('T')[0];
-    const displayDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const displayDate = d.toLocaleDateString(locale, { month: 'short', day: 'numeric' });
     result.push({ date: dateStr, displayDate, income: 0, expense: 0, net: 0 });
   }
 

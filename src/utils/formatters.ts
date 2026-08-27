@@ -99,7 +99,7 @@ export function formatDate(dateString: string, format: 'YYYY-MM-DD' | 'MM/DD/YYY
   }
 }
 
-export function formatRelativeDate(dateString: string): string {
+export function formatRelativeDate(dateString: string, locale: string = 'en-US'): string {
   if (!dateString) return '';
   const now = new Date();
   const todayStr = now.toISOString().split('T')[0];
@@ -110,14 +110,12 @@ export function formatRelativeDate(dateString: string): string {
   const diffTime = todayDate.getTime() - targetDate.getTime();
   const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays === -1) return 'Tomorrow';
-  if (diffDays > 1 && diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < -1 && diffDays > -7) return `In ${Math.abs(diffDays)} days`;
+  if (Math.abs(diffDays) < 7) {
+    return new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(-diffDays, 'day');
+  }
 
   // Format month and day
-  return targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return targetDate.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export function formatPercentage(value: number, includeSign: boolean = false): string {

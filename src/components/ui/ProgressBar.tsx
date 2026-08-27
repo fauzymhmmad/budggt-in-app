@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from '../../hooks/useTranslation';
 
 interface ProgressBarProps {
   value: number; // 0 to 100+
@@ -18,6 +19,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   status = 'auto',
   className = '',
 }) => {
+  const { t } = useTranslation();
   const percentage = Math.max(0, Math.min(100, value));
 
   let barColor = color;
@@ -41,7 +43,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
     <div className={`w-full ${className}`}>
       {showLabel && (
         <div className="flex justify-between items-center text-xs mb-1.5 font-medium text-slate-500 dark:text-slate-400">
-          <span>Progress</span>
+          <span>{t('progress')}</span>
           <span className="font-mono font-semibold text-slate-700 dark:text-slate-200">{value.toFixed(0)}%</span>
         </div>
       )}

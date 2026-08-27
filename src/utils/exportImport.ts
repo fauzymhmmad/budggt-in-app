@@ -16,7 +16,7 @@ export function exportToJSON(data: FullBackupData): void {
   const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data, null, 2))}`;
   const downloadAnchor = document.createElement('a');
   downloadAnchor.setAttribute('href', jsonString);
-  downloadAnchor.setAttribute('download', `aurabudget_backup_${new Date().toISOString().split('T')[0]}.json`);
+  downloadAnchor.setAttribute('download', `budggt-in_backup_${new Date().toISOString().split('T')[0]}.json`);
   document.body.appendChild(downloadAnchor);
   downloadAnchor.click();
   downloadAnchor.remove();
@@ -47,7 +47,7 @@ export function exportTransactionsToCSV(
   const encodedUri = encodeURI(csvContent);
   const link = document.createElement('a');
   link.setAttribute('href', encodedUri);
-  link.setAttribute('download', `aurabudget_transactions_${new Date().toISOString().split('T')[0]}.csv`);
+  link.setAttribute('download', `budggt-in_transactions_${new Date().toISOString().split('T')[0]}.csv`);
   document.body.appendChild(link);
   link.click();
   link.remove();

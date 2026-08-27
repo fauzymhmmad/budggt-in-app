@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { useFinance } from '../../context/FinanceContext';
+import { useTranslation } from '../../hooks/useTranslation';
 import { formatCurrency, formatPercentage } from '../../utils/formatters';
 
 interface MonthData {
@@ -13,6 +14,7 @@ interface MonthData {
 
 export const MonthOverMonth: React.FC = () => {
   const { transactions, settings } = useFinance();
+  const { t, language } = useTranslation();
 
   const monthsData: MonthData[] = useMemo(() => {
     const map = new Map<string, { income: number; expense: number }>();
@@ -38,7 +40,7 @@ export const MonthOverMonth: React.FC = () => {
     map.forEach((val, key) => {
       const [y, m] = key.split('-');
       const dateObj = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1);
-      const label = dateObj.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      const label = dateObj.toLocaleDateString(language === 'id' ? 'id-ID' : 'en-US', { month: 'short', year: 'numeric' });
       const net = val.income - val.expense;
       const savingsRate = val.income > 0 ? (net / val.income) * 100 : 0;
       result.push({
@@ -52,7 +54,7 @@ export const MonthOverMonth: React.FC = () => {
     });
 
     return result;
-  }, [transactions]);
+  }, [transactions, language]);
 
   const maxVal = useMemo(() => {
     return Math.max(...monthsData.map((m) => Math.max(m.income, m.expense)), 1000);
@@ -62,10 +64,10 @@ export const MonthOverMonth: React.FC = () => {
     <div className="p-5 rounded-2xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
       <div>
         <h3 className="text-base font-bold text-slate-900 dark:text-white">
-          Month-over-Month Comparison
+          {t('monthOverMonthTitle')}
         </h3>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          6-month historical income, expenses & savings trajectory
+          {t('monthOverMonthSubtitle')}
         </p>
       </div>
 
@@ -83,13 +85,13 @@ export const MonthOverMonth: React.FC = () => {
                   <div
                     className="w-3 sm:w-5 bg-emerald-500 rounded-t-md transition-all duration-300 group-hover:brightness-110"
                     style={{ height: `${incomeHeight}%` }}
-                    title={`Income: ${formatCurrency(m.income, settings.currency, settings.privacyMode)}`}
+                    title={`${t('income')}: ${formatCurrency(m.income, settings.currency, settings.privacyMode)}`}
                   />
                   {/* Expense bar */}
                   <div
                     className="w-3 sm:w-5 bg-rose-500 rounded-t-md transition-all duration-300 group-hover:brightness-110"
                     style={{ height: `${expenseHeight}%` }}
-                    title={`Expense: ${formatCurrency(m.expense, settings.currency, settings.privacyMode)}`}
+                    title={`${t('expense')}: ${formatCurrency(m.expense, settings.currency, settings.privacyMode)}`}
                   />
                 </div>
                 <span className="text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 truncate text-center">
@@ -106,11 +108,11 @@ export const MonthOverMonth: React.FC = () => {
         <table className="w-full text-left text-xs border-collapse">
           <thead>
             <tr className="border-b border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-400 uppercase">
-              <th className="py-2.5">Month</th>
-              <th className="py-2.5 text-right">Income</th>
-              <th className="py-2.5 text-right">Expenses</th>
-              <th className="py-2.5 text-right">Net Savings</th>
-              <th className="py-2.5 text-right">Savings Rate</th>
+              <th className="py-2.5">{t('month')}</th>
+              <th className="py-2.5 text-right">{t('income')}</th>
+              <th className="py-2.5 text-right">{t('monthlyExpenses')}</th>
+              <th className="py-2.5 text-right">{t('netSavings')}</th>
+              <th className="py-2.5 text-right">{t('savingsRate')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">

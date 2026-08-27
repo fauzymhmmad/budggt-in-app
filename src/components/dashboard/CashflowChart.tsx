@@ -17,8 +17,8 @@ export const CashflowChart: React.FC = () => {
   } | null>(null);
 
   const trends = useMemo(() => {
-    return calculateCashflowTrends(transactions, timeframe);
-  }, [transactions, timeframe]);
+    return calculateCashflowTrends(transactions, timeframe, language === 'id' ? 'id-ID' : 'en-US');
+  }, [transactions, timeframe, language]);
 
   const maxVal = useMemo(() => {
     const max = Math.max(

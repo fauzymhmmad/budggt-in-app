@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle, X } from 'lucide-react';
+import { useTranslation } from '../hooks/useTranslation';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -20,6 +21,7 @@ interface ToastContextType {
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { t } = useTranslation();
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const removeToast = useCallback((id: string) => {
@@ -70,7 +72,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             <button
               onClick={() => removeToast(toast.id)}
               className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
-              aria-label="Close toast"
+              aria-label={t('closeDialog')}
             >
               <X className="w-4 h-4" />
             </button>

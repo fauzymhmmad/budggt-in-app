@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
+import { useTranslation } from '../../hooks/useTranslation';
 
 interface ModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   maxWidth = 'md',
 }) => {
+  const { t } = useTranslation();
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -66,7 +68,7 @@ export const Modal: React.FC<ModalProps> = ({
           <button
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            aria-label="Close dialog"
+            aria-label={t('closeDialog')}
           >
             <X className="w-5 h-5" />
           </button>

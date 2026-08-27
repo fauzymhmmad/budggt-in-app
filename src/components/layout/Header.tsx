@@ -60,7 +60,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={onOpenCommandPalette}
           className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 text-xs font-medium transition-colors"
-          title="Search or quick actions (⌘K)"
+          title={t('searchActions')}
         >
           <Search className="w-3.5 h-3.5 text-slate-400" />
           <span className="hidden md:inline">{t('quickSearch')}</span>
@@ -73,8 +73,8 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={() => setLanguage(language === 'en' ? 'id' : 'en')}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-xs font-bold font-mono text-slate-700 dark:text-slate-200 transition-colors"
-          title={language === 'en' ? 'Ubah ke Bahasa Indonesia' : 'Switch to English'}
-          aria-label="Switch Language"
+          title={t('switchLanguage')}
+          aria-label={t('switchLanguage')}
         >
           <Languages className="w-3.5 h-3.5 text-emerald-500" />
           <span>{language === 'en' ? 'EN' : 'ID'}</span>
@@ -85,7 +85,7 @@ export const Header: React.FC<HeaderProps> = ({
           value={settings.currency}
           onChange={(e) => updateSettings({ currency: e.target.value })}
           className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-mono font-semibold rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 cursor-pointer"
-          aria-label="Select Currency"
+          aria-label={t('selectCurrency')}
         >
           {SUPPORTED_CURRENCIES.map((c) => (
             <option key={c.code} value={c.code} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
@@ -102,8 +102,8 @@ export const Header: React.FC<HeaderProps> = ({
               ? 'bg-amber-500/10 border-amber-500/30 text-amber-500'
               : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
-          title={settings.privacyMode ? 'Privacy Mode ON' : 'Privacy Mode OFF'}
-          aria-label="Toggle Privacy Mode"
+          title={settings.privacyMode ? t('privacyModeOn') : t('privacyModeOff')}
+          aria-label={t('togglePrivacyMode')}
         >
           {settings.privacyMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>
@@ -116,8 +116,8 @@ export const Header: React.FC<HeaderProps> = ({
               ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500'
               : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 text-slate-400'
           }`}
-          title={settings.soundEnabled ? 'Haptic Sound Effects Enabled' : 'Sound Effects Muted'}
-          aria-label="Toggle Sound Effects"
+          title={settings.soundEnabled ? t('soundEnabled') : t('soundMuted')}
+          aria-label={t('toggleSound')}
         >
           {settings.soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
         </button>
@@ -131,8 +131,8 @@ export const Header: React.FC<HeaderProps> = ({
             else setTheme('light');
           }}
           className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
-          title={`Current Theme: ${theme.toUpperCase()}`}
-          aria-label="Toggle Theme"
+          title={t('currentTheme', { theme: theme.toUpperCase() })}
+          aria-label={t('toggleTheme')}
         >
           {theme === 'system' ? (
             <Laptop className="w-4 h-4 text-cyan-400" />
@@ -151,7 +151,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={onOpenNewTransaction}
           className="md:hidden flex items-center justify-center p-2 rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20 active:scale-95 transition-transform"
-          aria-label="Add Transaction"
+          aria-label={t('addTransaction')}
         >
           <Plus className="w-4 h-4" />
         </button>

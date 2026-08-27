@@ -5,6 +5,7 @@ import { useFinance } from '../../context/FinanceContext';
 import { SavingsGoal } from '../../types/finance';
 import { calculateMonthlyRequiredForGoal } from '../../utils/calculations';
 import { formatCurrency, formatPercentage } from '../../utils/formatters';
+import { useTranslation } from '../../hooks/useTranslation';
 
 interface GoalCardProps {
   goal: SavingsGoal;
@@ -20,6 +21,7 @@ export const GoalCard: React.FC<GoalCardProps> = ({
   onOpenDeposit,
 }) => {
   const { settings } = useFinance();
+  const { t } = useTranslation();
 
   const progress = goal.targetAmount > 0 ? (goal.currentAmount / goal.targetAmount) * 100 : 0;
   const isAchieved = progress >= 100;
@@ -48,12 +50,12 @@ export const GoalCard: React.FC<GoalCardProps> = ({
               </h4>
               <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
                 <span className="font-medium text-slate-600 dark:text-slate-300">
-                  {goal.category || 'Savings'}
+                  {goal.category || t('savings')}
                 </span>
                 <span>•</span>
                 <span className="flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
-                  {diffDays > 0 ? `${diffDays} days left` : diffDays === 0 ? 'Due today' : 'Past deadline'}
+                  {diffDays > 0 ? `${diffDays} ${t('daysLeft')}` : diffDays === 0 ? t('dueToday') : t('pastDeadline')}
                 </span>
               </div>
             </div>
@@ -63,14 +65,14 @@ export const GoalCard: React.FC<GoalCardProps> = ({
             <button
               onClick={onEdit}
               className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              title="Edit Goal"
+              title={t('editGoal')}
             >
               <Edit2 className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={onDelete}
               className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              title="Delete Goal"
+              title={t('deleteGoal')}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -81,7 +83,7 @@ export const GoalCard: React.FC<GoalCardProps> = ({
         <div className="mt-4 space-y-2">
           <div className="flex items-baseline justify-between">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-              Saved: <span className="font-mono font-bold text-slate-900 dark:text-white text-sm">{formatCurrency(goal.currentAmount, settings.currency, settings.privacyMode)}</span>
+              {t('saved')} <span className="font-mono font-bold text-slate-900 dark:text-white text-sm">{formatCurrency(goal.currentAmount, settings.currency, settings.privacyMode)}</span>
             </span>
             <span className="text-xs font-mono font-bold text-emerald-500">
               {formatPercentage(progress)}
@@ -96,7 +98,7 @@ export const GoalCard: React.FC<GoalCardProps> = ({
           />
 
           <div className="flex items-center justify-between text-xs pt-1 text-slate-500 dark:text-slate-400">
-            <span>Target:</span>
+            <span>{t('target')}</span>
             <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">
               {formatCurrency(goal.targetAmount, settings.currency, settings.privacyMode)}
             </span>
@@ -109,13 +111,13 @@ export const GoalCard: React.FC<GoalCardProps> = ({
         <div className="text-[11px] text-slate-500 dark:text-slate-400">
           {isAchieved ? (
             <span className="text-emerald-500 font-semibold flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5" /> 100% Target Met!
+              <Sparkles className="w-3.5 h-3.5" /> {t('targetMet')}
             </span>
           ) : (
             <div>
-              <span>Need: </span>
+              <span>{t('needPerMonth')} </span>
               <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">
-                {formatCurrency(monthlyRequired, settings.currency, settings.privacyMode)}/mo
+                {formatCurrency(monthlyRequired, settings.currency, settings.privacyMode)}{t('perMonth')}
               </span>
             </div>
           )}
@@ -126,7 +128,7 @@ export const GoalCard: React.FC<GoalCardProps> = ({
           className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold active:scale-95 transition-all"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span>Add Funds</span>
+          <span>{t('addFunds')}</span>
         </button>
       </div>
     </div>

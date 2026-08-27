@@ -4,15 +4,16 @@ import {
   ArrowUpRight,
   ArrowLeftRight,
   Calendar,
-  DollarSign,
   Tag,
   Repeat,
   FileText,
 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
+import { CurrencyIcon } from '../ui/CurrencyIcon';
 import { useFinance } from '../../context/FinanceContext';
 import { Transaction, TransactionType } from '../../types/finance';
+import { useTranslation } from '../../hooks/useTranslation';
 
 interface TransactionModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   transactionToEdit,
 }) => {
   const { categories, accounts, addTransaction, updateTransaction, settings } = useFinance();
+  const { t } = useTranslation();
 
   const [type, setType] = useState<TransactionType>('expense');
   const [amount, setAmount] = useState<string>('');
@@ -80,12 +82,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     e.preventDefault();
     const numAmount = parseFloat(amount);
     if (isNaN(numAmount) || numAmount <= 0) {
-      alert('Please enter a valid positive amount.');
+      alert(t('validTransactionAmount'));
       return;
     }
 
     if (!merchant.trim()) {
-      alert('Please specify a merchant or title.');
+      alert(t('merchantRequired'));
       return;
     }
 
@@ -129,8 +131,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={transactionToEdit ? 'Edit Transaction' : 'Record New Transaction'}
-      subtitle="Enter details for your expense, income, or transfer"
+      title={transactionToEdit ? t('editTransaction') : t('recordNewTransaction')}
+      subtitle={t('transactionSubtitle')}
       maxWidth="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -146,7 +148,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             }`}
           >
             <ArrowUpRight className="w-3.5 h-3.5" />
-            <span>Expense</span>
+            <span>{t('expense')}</span>
           </button>
           <button
             type="button"
@@ -158,7 +160,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             }`}
           >
             <ArrowDownRight className="w-3.5 h-3.5" />
-            <span>Income</span>
+            <span>{t('income')}</span>
           </button>
           <button
             type="button"
@@ -170,24 +172,24 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             }`}
           >
             <ArrowLeftRight className="w-3.5 h-3.5" />
-            <span>Transfer</span>
+            <span>{t('transfer')}</span>
           </button>
         </div>
 
         {/* Amount Input */}
         <div>
           <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-            Amount ({settings.currency})
+            {t('amount')} ({settings.currency})
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 font-mono font-bold text-lg">
-              <DollarSign className="w-5 h-5 text-emerald-500" />
+              <CurrencyIcon currency={settings.currency} className="w-5 h-5 text-emerald-500" />
             </div>
             <input
               type="number"
               step="any"
               required
-              placeholder="0.00"
+              placeholder={t('amountPlaceholder')}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xl font-bold font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
@@ -199,12 +201,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         {/* Merchant / Title */}
         <div>
           <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-            Merchant / Description Title
+            {t('merchantTitle')}
           </label>
           <input
             type="text"
             required
-            placeholder="e.g. Whole Foods, Netflix, Salary, Coffee"
+            placeholder={t('merchantPlaceholder')}
             value={merchant}
             onChange={(e) => setMerchant(e.target.value)}
             className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
@@ -215,7 +217,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-              Date
+              {t('date')}
             </label>
             <div className="relative">
               <input
@@ -232,7 +234,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           {type !== 'transfer' ? (
             <div>
               <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                Category
+                {t('category')}
               </label>
               <select
                 value={categoryId}
@@ -249,7 +251,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           ) : (
             <div>
               <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                Transfer To Account
+                {t('transferToAccount')}
               </label>
               <select
                 value={toAccountId}
@@ -271,7 +273,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         {/* Account selector */}
         <div>
           <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-            {type === 'transfer' ? 'From Account' : 'Account / Payment Method'}
+            {type === 'transfer' ? t('fromAccount') : t('account')}
           </label>
           <select
             value={accountId}
@@ -290,12 +292,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-              Tags (comma separated)
+              {t('tagsPlaceholder')}
             </label>
             <div className="relative">
               <input
                 type="text"
-                placeholder="groceries, tech, travel"
+                placeholder={t('tagsExample')}
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
                 className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
@@ -314,7 +316,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               />
               <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
                 <Repeat className="w-3.5 h-3.5 text-emerald-500" />
-                Recurring Transaction
+                {t('recurringTransaction')}
               </span>
             </label>
           </div>
@@ -323,12 +325,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         {/* Notes / Description */}
         <div>
           <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-            Notes / Optional Memo
+            {t('notesMemo')}
           </label>
           <div className="relative">
             <input
               type="text"
-              placeholder="Additional notes, invoice number, etc."
+              placeholder={t('notesPlaceholder')}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
@@ -340,10 +342,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         {/* Modal footer actions */}
         <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
           <Button variant="secondary" type="button" onClick={onClose}>
-            Cancel
+            {t('cancel')}
           </Button>
           <Button variant="primary" type="submit">
-            {transactionToEdit ? 'Save Changes' : 'Add Transaction'}
+            {transactionToEdit ? t('saveChanges') : t('addTransaction')}
           </Button>
         </div>
       </form>

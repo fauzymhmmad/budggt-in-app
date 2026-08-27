@@ -13,6 +13,7 @@ import {
   Square,
 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
+import { useTranslation } from '../../hooks/useTranslation';
 import { Transaction } from '../../types/finance';
 import { TransactionFilters, FilterState } from './TransactionFilters';
 import { formatCurrency, formatDate } from '../../utils/formatters';
@@ -36,6 +37,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
     batchDeleteTransactions,
     settings,
   } = useFinance();
+  const { t } = useTranslation();
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
@@ -51,34 +53,29 @@ export const TransactionList: React.FC<TransactionListProps> = ({
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
   const accountMap = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
 
-  // Filtering & Sorting
   const filteredTransactions = useMemo(() => {
     return transactions
       .filter((tx) => {
-        // Search filter
         if (filters.search.trim()) {
           const s = filters.search.toLowerCase();
           const matchMerchant = tx.merchant.toLowerCase().includes(s);
           const matchDesc = tx.description?.toLowerCase().includes(s);
-          const matchTags = tx.tags?.some((t) => t.toLowerCase().includes(s));
+          const matchTags = tx.tags?.some((tag) => tag.toLowerCase().includes(s));
           if (!matchMerchant && !matchDesc && !matchTags) return false;
         }
 
-        // Type filter
         if (filters.type !== 'all' && tx.type !== filters.type) return false;
-
-        // Category filter
         if (filters.categoryId !== 'all' && tx.categoryId !== filters.categoryId) return false;
-
-        // Account filter
-        if (filters.accountId !== 'all' && tx.accountId !== filters.accountId && tx.toAccountId !== filters.accountId)
+        if (
+          filters.accountId !== 'all' &&
+          tx.accountId !== filters.accountId &&
+          tx.toAccountId !== filters.accountId
+        )
           return false;
 
-        // Date range filter
         if (filters.dateRange !== 'all') {
           const now = new Date();
           const txDate = new Date(tx.date + 'T00:00:00');
-
           if (filters.dateRange === 'this_month') {
             if (txDate.getMonth() !== now.getMonth() || txDate.getFullYear() !== now.getFullYear())
               return false;
@@ -94,7 +91,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({
             if (txDate.getFullYear() !== now.getFullYear()) return false;
           }
         }
-
         return true;
       })
       .sort((a, b) => {
@@ -107,32 +103,32 @@ export const TransactionList: React.FC<TransactionListProps> = ({
       });
   }, [transactions, filters]);
 
-  // Batch toggle
   const handleSelectAll = () => {
     if (selectedIds.length === filteredTransactions.length) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(filteredTransactions.map((t) => t.id));
+      setSelectedIds(filteredTransactions.map((tx) => tx.id));
     }
   };
 
   const handleToggleSelect = (id: string) => {
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
   };
 
   const handleBatchDelete = () => {
-    if (window.confirm(`Are you sure you want to delete ${selectedIds.length} transactions?`)) {
+    if (window.confirm(`${t('deleteSelected')} (${selectedIds.length})?`)) {
       batchDeleteTransactions(selectedIds);
       setSelectedIds([]);
     }
   };
 
   const handleBatchExport = () => {
-    const selectedTxs = transactions.filter((t) => selectedIds.includes(t.id));
+    const selectedTxs = transactions.filter((tx) => selectedIds.includes(tx.id));
     exportTransactionsToCSV(selectedTxs, categories, accounts);
   };
 
-  // Summary of filtered
   const filteredSummary = useMemo(() => {
     let income = 0;
     let expense = 0;
@@ -153,20 +149,20 @@ export const TransactionList: React.FC<TransactionListProps> = ({
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold shadow-md shadow-emerald-600/20 active:scale-95 transition-all"
           >
             <Plus className="w-4 h-4" />
-            <span>Add Transaction</span>
+            <span>{t('addTransaction')}</span>
           </button>
           <button
             onClick={() => exportTransactionsToCSV(filteredTransactions, categories, accounts)}
             className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Export CSV</span>
+            <span>{t('exportCsv')}</span>
           </button>
         </div>
 
         {/* Filtered stats chip */}
         <div className="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-2 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl">
-          <span>{filteredTransactions.length} records</span>
+          <span>{filteredTransactions.length} {t('records')}</span>
           <span>•</span>
           <span className="text-emerald-500 font-mono font-semibold">
             +{formatCurrency(filteredSummary.income, settings.currency, settings.privacyMode)}
@@ -178,10 +174,12 @@ export const TransactionList: React.FC<TransactionListProps> = ({
         </div>
       </div>
 
-      {/* Filter component */}
+      {/* Filter Component */}
       <TransactionFilters
         filters={filters}
-        onFilterChange={(newFilters) => setFilters((prev) => ({ ...prev, ...newFilters }))}
+        onFilterChange={(newFilters) =>
+          setFilters((prev) => ({ ...prev, ...newFilters }))
+        }
         onResetFilters={() =>
           setFilters({
             search: '',
@@ -198,31 +196,31 @@ export const TransactionList: React.FC<TransactionListProps> = ({
       {selectedIds.length > 0 && (
         <div className="p-3 rounded-2xl bg-emerald-950/90 text-emerald-100 border border-emerald-500/30 flex items-center justify-between animate-slide-up shadow-xl">
           <span className="text-xs font-semibold">
-            {selectedIds.length} transaction{selectedIds.length > 1 ? 's' : ''} selected
+            {selectedIds.length} {t('selected')}
           </span>
           <div className="flex items-center gap-2">
             <button
               onClick={handleBatchExport}
               className="px-3 py-1 text-xs font-semibold bg-emerald-800/60 hover:bg-emerald-700/80 rounded-lg flex items-center gap-1.5 transition-colors"
             >
-              <Download className="w-3.5 h-3.5" /> Export Selected
+              <Download className="w-3.5 h-3.5" /> {t('exportSelected')}
             </button>
             <button
               onClick={handleBatchDelete}
               className="px-3 py-1 text-xs font-semibold bg-rose-600 hover:bg-rose-500 rounded-lg flex items-center gap-1.5 transition-colors"
             >
-              <Trash2 className="w-3.5 h-3.5" /> Delete Selected
+              <Trash2 className="w-3.5 h-3.5" /> {t('deleteSelected')}
             </button>
           </div>
         </div>
       )}
 
-      {/* Transactions Table / List Container */}
+      {/* Transactions Table */}
       <div className="rounded-2xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
         {filteredTransactions.length === 0 ? (
           <div className="py-16 text-center text-slate-400">
-            <p className="text-sm font-semibold">No transactions matching your criteria.</p>
-            <p className="text-xs mt-1">Try tweaking your search filters or click "Add Transaction".</p>
+            <p className="text-sm font-semibold">{t('noMatchingTransactions')}</p>
+            <p className="text-xs mt-1">{t('tryTweakingFilters')}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -234,19 +232,20 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                       onClick={handleSelectAll}
                       className="text-slate-400 hover:text-emerald-500 transition-colors"
                     >
-                      {selectedIds.length === filteredTransactions.length && filteredTransactions.length > 0 ? (
+                      {selectedIds.length === filteredTransactions.length &&
+                      filteredTransactions.length > 0 ? (
                         <CheckSquare className="w-4 h-4 text-emerald-500" />
                       ) : (
                         <Square className="w-4 h-4" />
                       )}
                     </button>
                   </th>
-                  <th className="p-3.5">Transaction</th>
-                  <th className="p-3.5">Category</th>
-                  <th className="p-3.5">Account</th>
-                  <th className="p-3.5">Date</th>
-                  <th className="p-3.5 text-right">Amount</th>
-                  <th className="p-3.5 text-center w-28">Actions</th>
+                  <th className="p-3.5">{t('thTransaction')}</th>
+                  <th className="p-3.5">{t('thCategory')}</th>
+                  <th className="p-3.5">{t('thAccount')}</th>
+                  <th className="p-3.5">{t('thDate')}</th>
+                  <th className="p-3.5 text-right">{t('thAmount')}</th>
+                  <th className="p-3.5 text-center w-28">{t('thActions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
@@ -265,7 +264,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                         isSelected ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : ''
                       }`}
                     >
-                      {/* Checkbox */}
                       <td className="p-3.5 text-center">
                         <button
                           onClick={() => handleToggleSelect(tx.id)}
@@ -279,7 +277,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                         </button>
                       </td>
 
-                      {/* Transaction Merchant & Description */}
                       <td className="p-3.5">
                         <div className="flex items-center gap-3">
                           <div
@@ -300,17 +297,19 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                               {tx.merchant}
                             </p>
                             {tx.description && (
-                              <p className="text-[11px] text-slate-400 truncate mt-0.5">{tx.description}</p>
+                              <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                                {tx.description}
+                              </p>
                             )}
                             {tx.tags && tx.tags.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-1">
-                                {tx.tags.map((t) => (
+                                {tx.tags.map((tag) => (
                                   <span
-                                    key={t}
-                                    className="inline-flex items-center gap-0.5 text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.2 rounded"
+                                    key={tag}
+                                    className="inline-flex items-center gap-0.5 text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded"
                                   >
                                     <Tag className="w-2.5 h-2.5" />
-                                    {t}
+                                    {tag}
                                   </span>
                                 ))}
                               </div>
@@ -319,10 +318,9 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                         </div>
                       </td>
 
-                      {/* Category */}
                       <td className="p-3.5">
                         {tx.type === 'transfer' ? (
-                          <span className="text-slate-400 font-mono text-[11px]">Transfer</span>
+                          <span className="text-slate-400 font-mono text-[11px]">{t('transfer')}</span>
                         ) : (
                           <span
                             className="inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-md"
@@ -340,7 +338,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                         )}
                       </td>
 
-                      {/* Account */}
                       <td className="p-3.5 text-slate-600 dark:text-slate-300">
                         {tx.type === 'transfer' && toAcc ? (
                           <span className="text-xs">
@@ -351,12 +348,10 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                         )}
                       </td>
 
-                      {/* Date */}
                       <td className="p-3.5 text-slate-500 dark:text-slate-400 font-mono text-xs">
                         {formatDate(tx.date, settings.dateFormat)}
                       </td>
 
-                      {/* Amount */}
                       <td className="p-3.5 text-right font-mono font-bold text-sm">
                         <span
                           className={
@@ -372,31 +367,30 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                         </span>
                       </td>
 
-                      {/* Actions */}
                       <td className="p-3.5 text-center">
                         <div className="flex items-center justify-center gap-1 opacity-80 hover:opacity-100">
                           <button
                             onClick={() => onEditTransaction(tx)}
                             className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                            title="Edit"
+                            title={t('edit')}
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => duplicateTransaction(tx.id)}
                             className="p-1.5 text-slate-400 hover:text-emerald-500 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                            title="Duplicate"
+                            title={t('duplicate')}
                           >
                             <Copy className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => {
-                              if (window.confirm(`Delete transaction "${tx.merchant}"?`)) {
+                              if (window.confirm(t('deleteItemConfirm', { name: tx.merchant }))) {
                                 deleteTransaction(tx.id);
                               }
                             }}
                             className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                            title="Delete"
+                            title={t('delete')}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>

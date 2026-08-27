@@ -3,9 +3,11 @@ import { Sparkles } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { calculateMonthlySummary, calculateCompoundInterest } from '../../utils/calculations';
 import { formatCurrency } from '../../utils/formatters';
+import { useTranslation } from '../../hooks/useTranslation';
 
 export const NetWorthProjection: React.FC = () => {
   const { accounts, transactions, settings } = useFinance();
+  const { t } = useTranslation();
   const summary = calculateMonthlySummary(transactions);
 
   const currentNetWorth = accounts.reduce((acc, a) => acc + a.balance, 0);
@@ -30,11 +32,11 @@ export const NetWorthProjection: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
           <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <span>5-Year Wealth & Net Worth Projection</span>
+            <span>{t('fiveYearProjectionTitle')}</span>
             <Sparkles className="w-4 h-4 text-emerald-500" />
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Projected compounding trajectory based on your monthly surplus
+            {t('fiveYearProjectionSubtitle')}
           </p>
         </div>
       </div>
@@ -43,7 +45,7 @@ export const NetWorthProjection: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60">
         <div>
           <div className="flex justify-between text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-            <span>Monthly Savings Contribution</span>
+            <span>{t('monthlySavingsContribution')}</span>
             <span className="font-mono text-emerald-500 font-bold">
               {formatCurrency(monthlyContribution, settings.currency, settings.privacyMode)}
             </span>
@@ -61,7 +63,7 @@ export const NetWorthProjection: React.FC = () => {
 
         <div>
           <div className="flex justify-between text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-            <span>Expected Annual ROI</span>
+            <span>{t('expectedAnnualRoi')}</span>
             <span className="font-mono text-cyan-500 font-bold">{expectedReturnRate}%</span>
           </div>
           <input
@@ -83,12 +85,12 @@ export const NetWorthProjection: React.FC = () => {
             key={yearItem.year}
             className="p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-center"
           >
-            <span className="text-[11px] font-semibold text-slate-400">Year {yearItem.year}</span>
+            <span className="text-[11px] font-semibold text-slate-400">{t('yearNumber', { year: yearItem.year })}</span>
             <div className="text-sm sm:text-base font-bold font-mono text-slate-900 dark:text-white mt-1">
               {formatCurrency(yearItem.balance, settings.currency, settings.privacyMode)}
             </div>
             <div className="text-[10px] text-emerald-500 font-mono mt-0.5">
-              +{formatCurrency(yearItem.interestEarned, settings.currency, settings.privacyMode)} int.
+              +{formatCurrency(yearItem.interestEarned, settings.currency, settings.privacyMode)}
             </div>
           </div>
         ))}

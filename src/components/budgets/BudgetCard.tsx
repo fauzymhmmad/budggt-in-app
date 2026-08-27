@@ -4,6 +4,7 @@ import { ProgressBar } from '../ui/ProgressBar';
 import { useFinance } from '../../context/FinanceContext';
 import { CategorySpending } from '../../utils/calculations';
 import { formatCurrency, formatPercentage } from '../../utils/formatters';
+import { useTranslation } from '../../hooks/useTranslation';
 
 interface BudgetCardProps {
   item: CategorySpending;
@@ -13,6 +14,7 @@ interface BudgetCardProps {
 
 export const BudgetCard: React.FC<BudgetCardProps> = ({ item, onEdit, onDelete }) => {
   const { settings } = useFinance();
+  const { t } = useTranslation();
 
   const limit = item.budgetLimit || 0;
   const spent = item.spent;
@@ -46,7 +48,7 @@ export const BudgetCard: React.FC<BudgetCardProps> = ({ item, onEdit, onDelete }
                 {item.categoryName}
               </h4>
               <p className="text-xs text-slate-400">
-                Monthly Limit: {formatCurrency(limit, settings.currency, settings.privacyMode)}
+                {t('monthlyLimit')} {formatCurrency(limit, settings.currency, settings.privacyMode)}
               </p>
             </div>
           </div>
@@ -55,14 +57,14 @@ export const BudgetCard: React.FC<BudgetCardProps> = ({ item, onEdit, onDelete }
             <button
               onClick={onEdit}
               className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              title="Edit Limit"
+              title={t('editLimit')}
             >
               <Edit2 className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={onDelete}
               className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              title="Remove Budget"
+              title={t('removeBudget')}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -73,7 +75,7 @@ export const BudgetCard: React.FC<BudgetCardProps> = ({ item, onEdit, onDelete }
         <div className="mt-4 space-y-2">
           <div className="flex items-baseline justify-between text-xs">
             <span className="font-semibold text-slate-500 dark:text-slate-400">
-              Spent: {formatCurrency(spent, settings.currency, settings.privacyMode)}
+              {t('spent')} {formatCurrency(spent, settings.currency, settings.privacyMode)}
             </span>
             <span
               className={`font-bold font-mono ${
@@ -92,7 +94,7 @@ export const BudgetCard: React.FC<BudgetCardProps> = ({ item, onEdit, onDelete }
 
           <div className="flex items-center justify-between text-xs pt-1 text-slate-500 dark:text-slate-400">
             <span>
-              {remaining >= 0 ? 'Remaining:' : 'Over by:'}
+              {remaining >= 0 ? t('remaining') : t('overBy')}
             </span>
             <span
               className={`font-mono font-bold ${
@@ -108,7 +110,7 @@ export const BudgetCard: React.FC<BudgetCardProps> = ({ item, onEdit, onDelete }
       {/* Burn rate projection & Status Tag */}
       <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
         <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 truncate">
-          <span>Projected:</span>
+          <span>{t('projected')}</span>
           <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">
             {formatCurrency(projectedSpend, settings.currency, settings.privacyMode)}
           </span>
@@ -122,15 +124,15 @@ export const BudgetCard: React.FC<BudgetCardProps> = ({ item, onEdit, onDelete }
         <div>
           {isExceeded ? (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 font-semibold">
-              <AlertCircle className="w-3 h-3" /> Exceeded
+              <AlertCircle className="w-3 h-3" /> {t('statusExceeded')}
             </span>
           ) : isWarning ? (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold">
-              <AlertTriangle className="w-3 h-3" /> Warning
+              <AlertTriangle className="w-3 h-3" /> {t('statusWarning')}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold">
-              <CheckCircle className="w-3 h-3" /> Healthy
+              <CheckCircle className="w-3 h-3" /> {t('statusHealthy')}
             </span>
           )}
         </div>

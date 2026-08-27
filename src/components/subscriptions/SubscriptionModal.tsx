@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, Calendar, Globe } from 'lucide-react';
+import { Calendar, Globe } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
+import { CurrencyIcon } from '../ui/CurrencyIcon';
 import { useFinance } from '../../context/FinanceContext';
 import { BillingCycle, Subscription } from '../../types/finance';
+import { useTranslation } from '../../hooks/useTranslation';
 
 interface SubscriptionModalProps {
   isOpen: boolean;
@@ -19,6 +21,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   subscriptionToEdit,
 }) => {
   const { categories, accounts, addSubscription, updateSubscription, settings } = useFinance();
+  const { t } = useTranslation();
 
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
@@ -53,18 +56,18 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
       setWebsiteUrl('');
       setColor(SUB_COLORS[0]);
     }
-  }, [subscriptionToEdit, isOpen, expenseCategories, accounts]);
+  }, [subscriptionToEdit, isOpen, categories, accounts]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const num = parseFloat(amount);
     if (isNaN(num) || num <= 0) {
-      alert('Please enter a valid billing amount.');
+      alert(t('validBillingAmount'));
       return;
     }
 
     if (!name.trim()) {
-      alert('Please enter a subscription name.');
+      alert(t('subscriptionNameRequired'));
       return;
     }
 
@@ -101,20 +104,20 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={subscriptionToEdit ? 'Edit Recurring Bill' : 'Track New Subscription'}
-      subtitle="Keep track of recurring bills, software licenses & memberships"
+      title={subscriptionToEdit ? t('editSubscription') : t('trackNewSubscription')}
+      subtitle={t('subscriptionModalSubtitle')}
       maxWidth="md"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Name */}
         <div>
           <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-            Service / Bill Name
+            {t('serviceBillName')}
           </label>
           <input
             type="text"
             required
-            placeholder="e.g. Netflix, Spotify, Gym, Rent, AWS"
+            placeholder={t('subscriptionNamePlaceholder')}
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
@@ -126,15 +129,15 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-              Billing Amount ({settings.currency})
+              {t('billingAmount')} ({settings.currency})
             </label>
             <div className="relative">
-              <DollarSign className="w-4 h-4 text-emerald-500 absolute left-3 top-3 pointer-events-none" />
+              <CurrencyIcon currency={settings.currency} className="w-4 h-4 text-emerald-500 absolute left-3 top-3 pointer-events-none" />
               <input
                 type="number"
                 step="any"
                 required
-                placeholder="15.00"
+                placeholder={t('amountExample')}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
@@ -144,17 +147,17 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-              Billing Cycle
+              {t('billingCycle')}
             </label>
             <select
               value={billingCycle}
               onChange={(e) => setBillingCycle(e.target.value as BillingCycle)}
               className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 cursor-pointer"
             >
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="quarterly">Quarterly (3 Mo)</option>
-              <option value="yearly">Yearly (Annual)</option>
+              <option value="weekly">{t('weekly')}</option>
+              <option value="monthly">{t('monthly')}</option>
+              <option value="quarterly">{t('quarterlyThreeMonths')}</option>
+              <option value="yearly">{t('yearlyAnnual')}</option>
             </select>
           </div>
         </div>
@@ -163,7 +166,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-              Next Renewal Date
+              {t('nextRenewalDate')}
             </label>
             <div className="relative">
               <input
@@ -179,7 +182,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-              Payment Account
+              {t('paymentAccount')}
             </label>
             <select
               value={accountId}
@@ -199,7 +202,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-              Category
+              {t('category')}
             </label>
             <select
               value={categoryId}
@@ -216,12 +219,12 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-              Website / Portal Link (optional)
+              {t('websitePortalLink')}
             </label>
             <div className="relative">
               <input
                 type="url"
-                placeholder="https://service.com"
+                placeholder={t('websitePlaceholder')}
                 value={websiteUrl}
                 onChange={(e) => setWebsiteUrl(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
@@ -234,7 +237,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         {/* Color Accent Picker */}
         <div>
           <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-            Color Accent
+            {t('colorAccent')}
           </label>
           <div className="flex items-center gap-2.5">
             {SUB_COLORS.map((c) => (
@@ -254,10 +257,10 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         {/* Actions */}
         <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
           <Button variant="secondary" type="button" onClick={onClose}>
-            Cancel
+            {t('cancel')}
           </Button>
           <Button variant="primary" type="submit">
-            {subscriptionToEdit ? 'Save Changes' : 'Add Subscription'}
+            {subscriptionToEdit ? t('saveChanges') : t('addSubscription')}
           </Button>
         </div>
       </form>

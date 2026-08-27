@@ -21,6 +21,7 @@ import {
 import { useFinance } from '../../context/FinanceContext';
 import { useTheme } from '../../context/ThemeContext';
 import { exportTransactionsToCSV } from '../../utils/exportImport';
+import { useTranslation } from '../../hooks/useTranslation';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -45,13 +46,14 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     resetToSampleData,
   } = useFinance();
   const { toggleTheme } = useTheme();
+  const { t } = useTranslation();
 
   const commands = useMemo(() => {
     return [
       {
         id: 'new_tx',
-        title: 'New Transaction',
-        category: 'Quick Actions',
+        title: t('commandNewTransaction'),
+        category: t('commandQuickActions'),
         icon: PlusCircle,
         action: () => {
           onClose();
@@ -60,8 +62,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
       {
         id: 'tab_dashboard',
-        title: 'Go to Dashboard',
-        category: 'Navigation',
+        title: t('commandDashboard'),
+        category: t('commandNavigation'),
         icon: LayoutDashboard,
         action: () => {
           setActiveTab('dashboard');
@@ -70,8 +72,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
       {
         id: 'tab_transactions',
-        title: 'Go to Transactions Ledger',
-        category: 'Navigation',
+        title: t('commandTransactions'),
+        category: t('commandNavigation'),
         icon: ArrowLeftRight,
         action: () => {
           setActiveTab('transactions');
@@ -80,8 +82,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
       {
         id: 'tab_budgets',
-        title: 'Go to Category Budgets',
-        category: 'Navigation',
+        title: t('commandBudgets'),
+        category: t('commandNavigation'),
         icon: PieChart,
         action: () => {
           setActiveTab('budgets');
@@ -90,8 +92,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
       {
         id: 'tab_goals',
-        title: 'Go to Savings Goals',
-        category: 'Navigation',
+        title: t('commandGoals'),
+        category: t('commandNavigation'),
         icon: Target,
         action: () => {
           setActiveTab('goals');
@@ -100,8 +102,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
       {
         id: 'tab_subscriptions',
-        title: 'Go to Recurring Bills & Subscriptions',
-        category: 'Navigation',
+        title: t('commandSubscriptions'),
+        category: t('commandNavigation'),
         icon: CalendarCheck,
         action: () => {
           setActiveTab('subscriptions');
@@ -110,8 +112,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
       {
         id: 'tab_analytics',
-        title: 'Go to Analytics & Reports',
-        category: 'Navigation',
+        title: t('commandAnalytics'),
+        category: t('commandNavigation'),
         icon: BarChart3,
         action: () => {
           setActiveTab('analytics');
@@ -120,8 +122,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
       {
         id: 'tab_tools',
-        title: 'Go to Financial Calculators',
-        category: 'Navigation',
+        title: t('commandCalculators'),
+        category: t('commandNavigation'),
         icon: Calculator,
         action: () => {
           setActiveTab('tools');
@@ -130,8 +132,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
       {
         id: 'tab_settings',
-        title: 'Go to Settings & Data',
-        category: 'Navigation',
+        title: t('commandSettings'),
+        category: t('commandNavigation'),
         icon: Settings,
         action: () => {
           setActiveTab('settings');
@@ -140,8 +142,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
       {
         id: 'toggle_privacy',
-        title: settings.privacyMode ? 'Turn Off Privacy Mode (Show Balances)' : 'Turn On Privacy Mode (Mask Balances)',
-        category: 'Preferences',
+        title: settings.privacyMode ? t('commandPrivacyOff') : t('commandPrivacyOn'),
+        category: t('commandPreferences'),
         icon: settings.privacyMode ? Eye : EyeOff,
         action: () => {
           togglePrivacyMode();
@@ -150,8 +152,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
       {
         id: 'toggle_theme',
-        title: 'Cycle Dark / Light Theme',
-        category: 'Preferences',
+        title: t('commandCycleTheme'),
+        category: t('commandPreferences'),
         icon: settings.theme === 'light' ? Moon : Sun,
         action: () => {
           toggleTheme();
@@ -160,8 +162,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
       {
         id: 'toggle_sound',
-        title: settings.soundEnabled ? 'Mute Sound Effects' : 'Enable Sound Effects',
-        category: 'Preferences',
+        title: settings.soundEnabled ? t('commandMuteSound') : t('commandEnableSound'),
+        category: t('commandPreferences'),
         icon: Volume2,
         action: () => {
           updateSettings({ soundEnabled: !settings.soundEnabled });
@@ -170,8 +172,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
       {
         id: 'export_csv',
-        title: 'Export Transactions as CSV',
-        category: 'Data Management',
+        title: t('commandExportCsv'),
+        category: t('commandDataManagement'),
         icon: Download,
         action: () => {
           exportTransactionsToCSV(transactions, categories, accounts);
@@ -180,11 +182,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
       {
         id: 'reset_data',
-        title: 'Restore Sample Demo Data',
-        category: 'Data Management',
+        title: t('commandRestoreDemo'),
+        category: t('commandDataManagement'),
         icon: RotateCcw,
         action: () => {
-          if (window.confirm('Reset all financial data to demo sample?')) {
+          if (window.confirm(t('resetDemoConfirm'))) {
             resetToSampleData();
           }
           onClose();
@@ -203,6 +205,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     categories,
     accounts,
     resetToSampleData,
+    t,
   ]);
 
   const filteredCommands = useMemo(() => {
@@ -238,7 +241,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Type a command, tab, or action (e.g. 'budget', 'csv', 'privacy')..."
+            placeholder={t('commandPlaceholder')}
             className="w-full bg-transparent text-sm focus:outline-none text-slate-900 dark:text-slate-100 placeholder-slate-400"
             autoFocus
           />
@@ -251,7 +254,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         <div className="max-h-80 overflow-y-auto p-2 space-y-1 custom-scrollbar">
           {filteredCommands.length === 0 ? (
             <div className="p-8 text-center text-sm text-slate-400">
-              No matching commands or actions found.
+              {t('noMatchingCommands')}
             </div>
           ) : (
             filteredCommands.map((cmd) => {
