@@ -1,0 +1,162 @@
+import React, { useState } from 'react';
+import { FinanceProvider, useFinance } from './context/FinanceContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { ToastProvider } from './context/ToastContext';
+import { Header } from './components/layout/Header';
+import { Sidebar } from './components/layout/Sidebar';
+import { MobileNav } from './components/layout/MobileNav';
+import { CommandPalette } from './components/layout/CommandPalette';
+import { DashboardView } from './components/dashboard/DashboardView';
+import { TransactionList } from './components/transactions/TransactionList';
+import { TransactionModal } from './components/transactions/TransactionModal';
+import { BudgetSummary } from './components/budgets/BudgetSummary';
+import { GoalsView } from './components/goals/GoalsView';
+import { UpcomingCalendar } from './components/subscriptions/UpcomingCalendar';
+import { AnalyticsView } from './components/analytics/AnalyticsView';
+import { FinancialCalculators } from './components/tools/FinancialCalculators';
+import { SettingsView } from './components/settings/SettingsView';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { Modal } from './components/ui/Modal';
+import { Transaction } from './types/finance';
+import { CalendarCheck, BarChart3, Calculator, Settings } from 'lucide-react';
+
+const MainAppContent: React.FC = () => {
+  const { activeTab, setActiveTab, togglePrivacyMode } = useFinance();
+
+  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
+  const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isMobileMoreOpen, setIsMobileMoreOpen] = useState(false);
+
+  const handleOpenNewTransaction = () => {
+    setTransactionToEdit(null);
+    setIsTransactionModalOpen(true);
+  };
+
+  const handleEditTransaction = (tx: Transaction) => {
+    setTransactionToEdit(tx);
+    setIsTransactionModalOpen(true);
+  };
+
+  // Keyboard shortcuts integration
+  useKeyboardShortcuts({
+    onOpenCommandPalette: () => setIsCommandPaletteOpen((prev) => !prev),
+    onOpenNewTransaction: handleOpenNewTransaction,
+    onTogglePrivacy: togglePrivacyMode,
+    onSelectTab: (index) => {
+      const tabs = ['dashboard', 'transactions', 'budgets', 'goals', 'subscriptions', 'analytics', 'tools'];
+      if (tabs[index]) setActiveTab(tabs[index]);
+    },
+    onCloseModal: () => {
+      setIsTransactionModalOpen(false);
+      setIsCommandPaletteOpen(false);
+      setIsMobileMoreOpen(false);
+    },
+  });
+
+  return (
+    <div className="flex min-h-screen bg-slate-50 text-slate-900 dark:bg-[#0b0f17] dark:text-slate-100 font-sans selection:bg-emerald-500 selection:text-white transition-colors duration-200">
+      {/* Desktop Sidebar */}
+      <Sidebar
+        onOpenNewTransaction={handleOpenNewTransaction}
+        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+      />
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 pb-20 md:pb-8">
+        {/* Sticky Header */}
+        <Header
+          onOpenNewTransaction={handleOpenNewTransaction}
+          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+        />
+
+        {/* Dynamic Tab Body */}
+        <main className="flex-1 p-4 sm:p-8 max-w-7xl w-full mx-auto animate-fade-in">
+          {activeTab === 'dashboard' && (
+            <DashboardView onOpenNewTransaction={handleOpenNewTransaction} />
+          )}
+          {activeTab === 'transactions' && (
+            <TransactionList
+              onOpenNewTransaction={handleOpenNewTransaction}
+              onEditTransaction={handleEditTransaction}
+            />
+          )}
+          {activeTab === 'budgets' && <BudgetSummary />}
+          {activeTab === 'goals' && <GoalsView />}
+          {activeTab === 'subscriptions' && <UpcomingCalendar />}
+          {activeTab === 'analytics' && <AnalyticsView />}
+          {activeTab === 'tools' && <FinancialCalculators />}
+          {activeTab === 'settings' && <SettingsView />}
+        </main>
+      </div>
+
+      {/* Mobile Bottom Dock Navigation */}
+      <MobileNav onOpenMoreMenu={() => setIsMobileMoreOpen(true)} />
+
+      {/* New / Edit Transaction Modal */}
+      <TransactionModal
+        isOpen={isTransactionModalOpen}
+        onClose={() => setIsTransactionModalOpen(false)}
+        transactionToEdit={transactionToEdit}
+      />
+
+      {/* Command Palette (Cmd+K) */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onOpenNewTransaction={handleOpenNewTransaction}
+      />
+
+      {/* Mobile More Navigation Sheet */}
+      <Modal
+        isOpen={isMobileMoreOpen}
+        onClose={() => setIsMobileMoreOpen(false)}
+        title="More Features"
+        subtitle="Explore additional financial tools and settings"
+        maxWidth="sm"
+      >
+        <div className="grid grid-cols-2 gap-3 py-2">
+          {[
+            { id: 'subscriptions', label: 'Recurring Bills', icon: CalendarCheck, color: 'text-indigo-500' },
+            { id: 'analytics', label: 'Analytics', icon: BarChart3, color: 'text-emerald-500' },
+            { id: 'tools', label: 'Calculators', icon: Calculator, color: 'text-purple-500' },
+            { id: 'settings', label: 'Settings', icon: Settings, color: 'text-cyan-500' },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setActiveTab(item.id);
+                  setIsMobileMoreOpen(false);
+                }}
+                className={`p-4 rounded-xl border flex flex-col items-center justify-center gap-2 text-center transition-all ${
+                  activeTab === item.id
+                    ? 'bg-emerald-500/10 border-emerald-500 text-emerald-600 dark:text-emerald-400 font-bold'
+                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                }`}
+              >
+                <Icon className={`w-6 h-6 ${item.color}`} />
+                <span className="text-xs">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </Modal>
+    </div>
+  );
+};
+
+export function App() {
+  return (
+    <ThemeProvider>
+      <ToastProvider>
+        <FinanceProvider>
+          <MainAppContent />
+        </FinanceProvider>
+      </ToastProvider>
+    </ThemeProvider>
+  );
+}
+
+export default App;

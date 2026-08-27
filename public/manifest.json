@@ -1,0 +1,16 @@
+{
+  "short_name": "AuraBudget",
+  "name": "AuraBudget - Smart Personal Finance",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512"
+    }
+  ],
+  "start_url": "./",
+  "background_color": "#0b0f17",
+  "theme_color": "#10b981",
+  "display": "standalone",
+  "orientation": "portrait"
+}
