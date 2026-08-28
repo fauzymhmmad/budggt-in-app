@@ -106,3 +106,14 @@ export interface FinancialInsight {
   actionTab?: string;
   timestamp: string;
 }
+
+export interface FinanceSnapshot {
+  version: string;
+  transactions: Transaction[];
+  categories: Category[];
+  accounts: Account[];
+  budgets: Budget[];
+  goals: SavingsGoal[];
+  subscriptions: Subscription[];
+  settings: AppSettings;
+}

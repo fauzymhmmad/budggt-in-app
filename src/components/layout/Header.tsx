@@ -10,8 +10,12 @@ import {
   Search,
   Laptop,
   Languages,
+  Cloud,
+  CloudOff,
+  LogOut,
 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
+import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { SUPPORTED_CURRENCIES } from '../../utils/formatters';
@@ -25,7 +29,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenNewTransaction,
   onOpenCommandPalette,
 }) => {
-  const { activeTab, settings, updateSettings, togglePrivacyMode } = useFinance();
+  const { activeTab, settings, syncStatus, updateSettings, togglePrivacyMode } = useFinance();
+  const { user, signOut } = useAuth();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { t, language, setLanguage } = useTranslation();
 
@@ -67,6 +72,27 @@ export const Header: React.FC<HeaderProps> = ({
           <kbd className="hidden md:inline font-mono text-[10px] text-slate-400 bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
             ⌘K
           </kbd>
+        </button>
+
+        <div
+          className={`hidden lg:flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs font-medium ${
+            syncStatus === 'error' || syncStatus === 'conflict'
+              ? 'border-amber-500/30 bg-amber-500/10 text-amber-500'
+              : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-500'
+          }`}
+          title={syncStatus === 'synced' ? 'Your data is synced across devices' : `Cloud sync: ${syncStatus}`}
+        >
+          {syncStatus === 'error' || syncStatus === 'conflict' ? <CloudOff className="w-3.5 h-3.5" /> : <Cloud className="w-3.5 h-3.5" />}
+          <span>{syncStatus === 'synced' ? 'Synced' : syncStatus === 'syncing' ? 'Syncing' : syncStatus === 'conflict' ? 'Updated elsewhere' : 'Sync issue'}</span>
+        </div>
+
+        <button
+          onClick={() => void signOut()}
+          className="hidden sm:flex items-center gap-1.5 p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 text-slate-500 dark:text-slate-400 hover:text-rose-500 transition-colors"
+          title={`Sign out ${user?.email || ''}`}
+          aria-label="Sign out"
+        >
+          <LogOut className="w-4 h-4" />
         </button>
 
         {/* Language Switcher Button */}

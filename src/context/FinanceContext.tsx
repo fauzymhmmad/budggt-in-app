@@ -1,9 +1,10 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Account,
   AppSettings,
   Budget,
   Category,
+  FinanceSnapshot,
   SavingsGoal,
   Subscription,
   Transaction,
@@ -17,512 +18,357 @@ import {
   generateSampleTransactions,
 } from '../utils/sampleData';
 import { FullBackupData } from '../utils/exportImport';
-import { playClick, playDelete, playSuccess, playCelebration } from '../utils/soundEffects';
+import { playCelebration, playClick, playDelete, playSuccess } from '../utils/soundEffects';
+import { useAuth } from './AuthContext';
+import { supabase } from '../lib/supabase';
 
 const STORAGE_KEY = 'aurabudget_data_v1';
+const LEGACY_OWNER_KEY = 'aurabudget_data_v1_cloud_owner';
 
 const DEFAULT_SETTINGS: AppSettings = {
-  currency: 'USD',
-  language: 'en',
-  dateFormat: 'YYYY-MM-DD',
-  soundEnabled: true,
-  privacyMode: false,
-  startOfMonthDay: 1,
-  theme: 'dark',
+  currency: 'USD', language: 'en', dateFormat: 'YYYY-MM-DD', soundEnabled: true,
+  privacyMode: false, startOfMonthDay: 1, theme: 'dark',
 };
 
+type SyncStatus = 'loading' | 'synced' | 'syncing' | 'conflict' | 'error';
+
+interface StoredSnapshot extends Omit<FinanceSnapshot, 'version'> { version?: string; }
+interface RemoteSnapshot { data: FinanceSnapshot; version: number; updated_at: string; }
+
 interface FinanceContextType {
-  transactions: Transaction[];
-  categories: Category[];
-  accounts: Account[];
-  budgets: Budget[];
-  goals: SavingsGoal[];
-  subscriptions: Subscription[];
-  settings: AppSettings;
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
-  // Transactions actions
+  transactions: Transaction[]; categories: Category[]; accounts: Account[]; budgets: Budget[];
+  goals: SavingsGoal[]; subscriptions: Subscription[]; settings: AppSettings; activeTab: string;
+  syncStatus: SyncStatus; setActiveTab: (tab: string) => void;
   addTransaction: (tx: Omit<Transaction, 'id' | 'createdAt'>) => Transaction;
   updateTransaction: (id: string, tx: Partial<Transaction>) => void;
-  deleteTransaction: (id: string) => void;
-  duplicateTransaction: (id: string) => void;
+  deleteTransaction: (id: string) => void; duplicateTransaction: (id: string) => void;
   batchDeleteTransactions: (ids: string[]) => void;
-  // Budgets actions
   setBudget: (categoryId: string, amount: number, alertThreshold?: number) => void;
   deleteBudget: (categoryId: string) => void;
-  // Goals actions
   addGoal: (goal: Omit<SavingsGoal, 'id' | 'createdAt'>) => void;
-  updateGoal: (id: string, goal: Partial<SavingsGoal>) => void;
-  deleteGoal: (id: string) => void;
+  updateGoal: (id: string, goal: Partial<SavingsGoal>) => void; deleteGoal: (id: string) => void;
   depositToGoal: (goalId: string, amount: number, sourceAccountId?: string) => void;
   withdrawFromGoal: (goalId: string, amount: number, targetAccountId?: string) => void;
-  // Subscriptions actions
   addSubscription: (sub: Omit<Subscription, 'id'>) => void;
-  updateSubscription: (id: string, sub: Partial<Subscription>) => void;
-  deleteSubscription: (id: string) => void;
+  updateSubscription: (id: string, sub: Partial<Subscription>) => void; deleteSubscription: (id: string) => void;
   markSubscriptionPaid: (id: string) => void;
-  // Account actions
-  addAccount: (acc: Omit<Account, 'id'>) => void;
-  updateAccount: (id: string, acc: Partial<Account>) => void;
+  addAccount: (acc: Omit<Account, 'id'>) => void; updateAccount: (id: string, acc: Partial<Account>) => void;
   deleteAccount: (id: string) => void;
-  // Category actions
-  addCategory: (cat: Omit<Category, 'id'>) => void;
-  updateCategory: (id: string, cat: Partial<Category>) => void;
+  addCategory: (cat: Omit<Category, 'id'>) => void; updateCategory: (id: string, cat: Partial<Category>) => void;
   deleteCategory: (id: string) => void;
-  // Settings & System actions
-  updateSettings: (newSettings: Partial<AppSettings>) => void;
-  togglePrivacyMode: () => void;
-  resetToSampleData: () => void;
-  clearAllData: () => void;
-  restoreFromBackup: (data: FullBackupData) => void;
+  updateSettings: (newSettings: Partial<AppSettings>) => void; togglePrivacyMode: () => void;
+  resetToSampleData: () => void; clearAllData: () => void; restoreFromBackup: (data: FullBackupData) => void;
 }
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
+const createDefaultSnapshot = (): FinanceSnapshot => ({
+  version: '1.0.0', transactions: generateSampleTransactions(), categories: DEFAULT_CATEGORIES,
+  accounts: DEFAULT_ACCOUNTS, budgets: DEFAULT_BUDGETS, goals: DEFAULT_GOALS,
+  subscriptions: DEFAULT_SUBSCRIPTIONS, settings: DEFAULT_SETTINGS,
+});
+
+const isSnapshot = (value: unknown): value is StoredSnapshot => {
+  if (!value || typeof value !== 'object') return false;
+  const snapshot = value as Partial<StoredSnapshot>;
+  return Boolean(Array.isArray(snapshot.transactions) && Array.isArray(snapshot.categories)
+    && Array.isArray(snapshot.accounts) && Array.isArray(snapshot.budgets) && Array.isArray(snapshot.goals)
+    && Array.isArray(snapshot.subscriptions) && snapshot.settings);
+};
+
+const readLocalSnapshot = (): FinanceSnapshot => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed: unknown = JSON.parse(saved);
+      if (isSnapshot(parsed)) {
+        return {
+          version: '1.0.0', transactions: parsed.transactions, categories: parsed.categories,
+          accounts: parsed.accounts, budgets: parsed.budgets, goals: parsed.goals,
+          subscriptions: parsed.subscriptions, settings: { ...DEFAULT_SETTINGS, ...parsed.settings },
+        };
+      }
+    }
+  } catch {
+    // Use default data when legacy storage is unreadable.
+  }
+  return createDefaultSnapshot();
+};
+
+const isRemoteSnapshot = (value: unknown): value is RemoteSnapshot => {
+  if (!value || typeof value !== 'object') return false;
+  const snapshot = value as Partial<RemoteSnapshot>;
+  return typeof snapshot.version === 'number' && isSnapshot(snapshot.data);
+};
+
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const { user } = useAuth();
+  const initialSnapshot = useMemo(readLocalSnapshot, []);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [transactions, setTransactions] = useState<Transaction[]>(initialSnapshot.transactions);
+  const [categories, setCategories] = useState<Category[]>(initialSnapshot.categories);
+  const [accounts, setAccounts] = useState<Account[]>(initialSnapshot.accounts);
+  const [budgets, setBudgets] = useState<Budget[]>(initialSnapshot.budgets);
+  const [goals, setGoals] = useState<SavingsGoal[]>(initialSnapshot.goals);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>(initialSnapshot.subscriptions);
+  const [settings, setSettings] = useState<AppSettings>(initialSnapshot.settings);
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('loading');
+  const remoteVersion = useRef(0);
+  const lastPersistedSnapshot = useRef('');
 
-  // State initialization from LocalStorage or defaults
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.transactions)) return parsed.transactions;
-      }
-    } catch {
-      // Fallback
-    }
-    return generateSampleTransactions();
-  });
+  const snapshot = useMemo<FinanceSnapshot>(() => ({
+    version: '1.0.0', transactions, categories, accounts, budgets, goals, subscriptions, settings,
+  }), [transactions, categories, accounts, budgets, goals, subscriptions, settings]);
+  const snapshotJson = useMemo(() => JSON.stringify(snapshot), [snapshot]);
 
-  const [categories, setCategories] = useState<Category[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.categories)) return parsed.categories;
-      }
-    } catch {}
-    return DEFAULT_CATEGORIES;
-  });
+  const applySnapshot = useCallback((next: FinanceSnapshot) => {
+    setTransactions(next.transactions); setCategories(next.categories); setAccounts(next.accounts);
+    setBudgets(next.budgets); setGoals(next.goals); setSubscriptions(next.subscriptions);
+    setSettings({ ...DEFAULT_SETTINGS, ...next.settings });
+  }, []);
 
-  const [accounts, setAccounts] = useState<Account[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.accounts)) return parsed.accounts;
-      }
-    } catch {}
-    return DEFAULT_ACCOUNTS;
-  });
+  const loadRemoteSnapshot = useCallback(async (): Promise<RemoteSnapshot | null> => {
+    if (!user) return null;
+    const { data, error } = await supabase.from('finance_snapshots')
+      .select('data, version, updated_at').eq('user_id', user.id).maybeSingle();
+    if (error) throw error;
+    return isRemoteSnapshot(data) ? data : null;
+  }, [user]);
 
-  const [budgets, setBudgets] = useState<Budget[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.budgets)) return parsed.budgets;
-      }
-    } catch {}
-    return DEFAULT_BUDGETS;
-  });
-
-  const [goals, setGoals] = useState<SavingsGoal[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.goals)) return parsed.goals;
-      }
-    } catch {}
-    return DEFAULT_GOALS;
-  });
-
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.subscriptions)) return parsed.subscriptions;
-      }
-    } catch {}
-    return DEFAULT_SUBSCRIPTIONS;
-  });
-
-  const [settings, setSettings] = useState<AppSettings>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.settings) return { ...DEFAULT_SETTINGS, ...parsed.settings };
-      }
-    } catch {}
-    return DEFAULT_SETTINGS;
-  });
-
-  // Sync state to LocalStorage
   useEffect(() => {
-    try {
-      const stateToSave = {
-        version: '1.0.0',
-        transactions,
-        categories,
-        accounts,
-        budgets,
-        goals,
-        subscriptions,
-        settings,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
-    } catch (e) {
-      console.error('Failed to save to local storage', e);
-    }
-  }, [transactions, categories, accounts, budgets, goals, subscriptions, settings]);
-
-  // Actions
-  const addTransaction = useCallback(
-    (tx: Omit<Transaction, 'id' | 'createdAt'>): Transaction => {
-      const newTx: Transaction = {
-        ...tx,
-        id: 'tx_' + Math.random().toString(36).substring(2, 9),
-        createdAt: new Date().toISOString(),
-      };
-
-      setTransactions((prev) => [newTx, ...prev]);
-
-      // Adjust account balance accordingly
-      setAccounts((prev) =>
-        prev.map((acc) => {
-          if (tx.type === 'income' && acc.id === tx.accountId) {
-            return { ...acc, balance: acc.balance + tx.amount };
+    if (!user) return;
+    let cancelled = false;
+    const hydrate = async () => {
+      setIsHydrated(false); setSyncStatus('loading');
+      try {
+        let remote = await loadRemoteSnapshot();
+        if (!remote) {
+          const legacyOwner = localStorage.getItem(LEGACY_OWNER_KEY);
+          const dataToMigrate = !legacyOwner || legacyOwner === user.id ? readLocalSnapshot() : createDefaultSnapshot();
+          const { data, error } = await supabase.rpc('save_finance_snapshot', { p_data: dataToMigrate, p_expected_version: 0 });
+          if (error) {
+            remote = await loadRemoteSnapshot();
+            if (!remote) throw error;
+          } else if (isRemoteSnapshot(data)) {
+            remote = data;
           }
-          if (tx.type === 'expense' && acc.id === tx.accountId) {
-            return { ...acc, balance: acc.balance - tx.amount };
-          }
-          if (tx.type === 'transfer') {
-            if (acc.id === tx.accountId) return { ...acc, balance: acc.balance - tx.amount };
-            if (acc.id === tx.toAccountId) return { ...acc, balance: acc.balance + tx.amount };
-          }
-          return acc;
-        })
-      );
+        }
+        if (cancelled || !remote) return;
+        remoteVersion.current = remote.version;
+        lastPersistedSnapshot.current = JSON.stringify(remote.data);
+        localStorage.setItem(STORAGE_KEY, lastPersistedSnapshot.current);
+        localStorage.setItem(LEGACY_OWNER_KEY, user.id);
+        applySnapshot(remote.data);
+        setSyncStatus('synced');
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load financial data from Supabase', error);
+          setSyncStatus('error');
+        }
+      } finally {
+        if (!cancelled) setIsHydrated(true);
+      }
+    };
+    void hydrate();
+    return () => { cancelled = true; };
+  }, [applySnapshot, loadRemoteSnapshot, user]);
 
-      playSuccess(settings.soundEnabled);
-      return newTx;
-    },
-    [settings.soundEnabled]
-  );
-
-  const updateTransaction = useCallback(
-    (id: string, updated: Partial<Transaction>) => {
-      setTransactions((prev) =>
-        prev.map((tx) => (tx.id === id ? { ...tx, ...updated } : tx))
-      );
-      playClick(settings.soundEnabled);
-    },
-    [settings.soundEnabled]
-  );
-
-  const deleteTransaction = useCallback(
-    (id: string) => {
-      setTransactions((prev) => prev.filter((tx) => tx.id !== id));
-      playDelete(settings.soundEnabled);
-    },
-    [settings.soundEnabled]
-  );
-
-  const duplicateTransaction = useCallback(
-    (id: string) => {
-      const existing = transactions.find((t) => t.id === id);
-      if (existing) {
-        addTransaction({
-          type: existing.type,
-          amount: existing.amount,
-          categoryId: existing.categoryId,
-          accountId: existing.accountId,
-          toAccountId: existing.toAccountId,
-          date: new Date().toISOString().split('T')[0],
-          merchant: `${existing.merchant} (Copy)`,
-          description: existing.description,
-          tags: existing.tags ? [...existing.tags] : [],
+  useEffect(() => {
+    if (!user || !isHydrated || snapshotJson === lastPersistedSnapshot.current) return;
+    const timeout = window.setTimeout(() => {
+      void (async () => {
+        setSyncStatus('syncing');
+        const { data, error } = await supabase.rpc('save_finance_snapshot', {
+          p_data: snapshot, p_expected_version: remoteVersion.current,
         });
+        if (error || !isRemoteSnapshot(data)) {
+          try {
+            const latest = await loadRemoteSnapshot();
+            if (latest && latest.version > remoteVersion.current) {
+              remoteVersion.current = latest.version;
+              lastPersistedSnapshot.current = JSON.stringify(latest.data);
+              localStorage.setItem(STORAGE_KEY, lastPersistedSnapshot.current);
+              applySnapshot(latest.data);
+              setSyncStatus('conflict');
+              return;
+            }
+          } catch (loadError) {
+            console.error('Failed to recover finance data after a sync error', loadError);
+          }
+          console.error('Failed to save financial data to Supabase', error);
+          setSyncStatus('error');
+          return;
+        }
+        remoteVersion.current = data.version;
+        lastPersistedSnapshot.current = snapshotJson;
+        localStorage.setItem(STORAGE_KEY, snapshotJson);
+        localStorage.setItem(LEGACY_OWNER_KEY, user.id);
+        setSyncStatus('synced');
+      })();
+    }, 500);
+    return () => window.clearTimeout(timeout);
+  }, [applySnapshot, isHydrated, loadRemoteSnapshot, snapshot, snapshotJson, user]);
+
+  useEffect(() => {
+    if (!user || !isHydrated) return;
+    const channel = supabase.channel(`finance-snapshot-${user.id}`).on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'finance_snapshots', filter: `user_id=eq.${user.id}` },
+      (payload) => {
+        if (!isRemoteSnapshot(payload.new) || payload.new.version <= remoteVersion.current) return;
+        remoteVersion.current = payload.new.version;
+        lastPersistedSnapshot.current = JSON.stringify(payload.new.data);
+        localStorage.setItem(STORAGE_KEY, lastPersistedSnapshot.current);
+        applySnapshot(payload.new.data);
+        setSyncStatus('synced');
       }
-    },
-    [transactions, addTransaction]
-  );
+    ).subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [applySnapshot, isHydrated, user]);
 
-  const batchDeleteTransactions = useCallback(
-    (ids: string[]) => {
-      const set = new Set(ids);
-      setTransactions((prev) => prev.filter((t) => !set.has(t.id)));
-      playDelete(settings.soundEnabled);
-    },
-    [settings.soundEnabled]
-  );
+  const addTransaction = useCallback((tx: Omit<Transaction, 'id' | 'createdAt'>): Transaction => {
+    const newTx: Transaction = { ...tx, id: `tx_${Math.random().toString(36).substring(2, 9)}`, createdAt: new Date().toISOString() };
+    setTransactions((prev) => [newTx, ...prev]);
+    setAccounts((prev) => prev.map((account) => {
+      if (tx.type === 'income' && account.id === tx.accountId) return { ...account, balance: account.balance + tx.amount };
+      if (tx.type === 'expense' && account.id === tx.accountId) return { ...account, balance: account.balance - tx.amount };
+      if (tx.type === 'transfer') {
+        if (account.id === tx.accountId) return { ...account, balance: account.balance - tx.amount };
+        if (account.id === tx.toAccountId) return { ...account, balance: account.balance + tx.amount };
+      }
+      return account;
+    }));
+    playSuccess(settings.soundEnabled);
+    return newTx;
+  }, [settings.soundEnabled]);
 
-  const setBudget = useCallback((categoryId: string, amount: number, alertThreshold: number = 80) => {
+  const updateTransaction = useCallback((id: string, updated: Partial<Transaction>) => {
+    setTransactions((prev) => prev.map((tx) => tx.id === id ? { ...tx, ...updated } : tx));
+    playClick(settings.soundEnabled);
+  }, [settings.soundEnabled]);
+  const deleteTransaction = useCallback((id: string) => {
+    setTransactions((prev) => prev.filter((tx) => tx.id !== id)); playDelete(settings.soundEnabled);
+  }, [settings.soundEnabled]);
+  const duplicateTransaction = useCallback((id: string) => {
+    const existing = transactions.find((tx) => tx.id === id);
+    if (existing) addTransaction({ type: existing.type, amount: existing.amount, categoryId: existing.categoryId,
+      accountId: existing.accountId, toAccountId: existing.toAccountId, date: new Date().toISOString().split('T')[0],
+      merchant: `${existing.merchant} (Copy)`, description: existing.description, tags: existing.tags ? [...existing.tags] : [] });
+  }, [addTransaction, transactions]);
+  const batchDeleteTransactions = useCallback((ids: string[]) => {
+    const idSet = new Set(ids); setTransactions((prev) => prev.filter((tx) => !idSet.has(tx.id))); playDelete(settings.soundEnabled);
+  }, [settings.soundEnabled]);
+
+  const setBudget = useCallback((categoryId: string, amount: number, alertThreshold = 80) => {
     setBudgets((prev) => {
-      const existingIdx = prev.findIndex((b) => b.categoryId === categoryId);
-      if (existingIdx >= 0) {
-        const copy = [...prev];
-        copy[existingIdx] = { ...copy[existingIdx], amount, alertThreshold };
-        return copy;
-      } else {
-        return [
-          ...prev,
-          {
-            id: 'bgt_' + Math.random().toString(36).substring(2, 9),
-            categoryId,
-            amount,
-            period: 'monthly',
-            alertThreshold,
-          },
-        ];
-      }
+      const index = prev.findIndex((budget) => budget.categoryId === categoryId);
+      if (index >= 0) { const next = [...prev]; next[index] = { ...next[index], amount, alertThreshold }; return next; }
+      return [...prev, { id: `bgt_${Math.random().toString(36).substring(2, 9)}`, categoryId, amount, period: 'monthly', alertThreshold }];
     });
     playSuccess(settings.soundEnabled);
   }, [settings.soundEnabled]);
-
   const deleteBudget = useCallback((categoryId: string) => {
-    setBudgets((prev) => prev.filter((b) => b.categoryId !== categoryId));
-    playDelete(settings.soundEnabled);
+    setBudgets((prev) => prev.filter((budget) => budget.categoryId !== categoryId)); playDelete(settings.soundEnabled);
   }, [settings.soundEnabled]);
 
   const addGoal = useCallback((goal: Omit<SavingsGoal, 'id' | 'createdAt'>) => {
-    const newGoal: SavingsGoal = {
-      ...goal,
-      id: 'goal_' + Math.random().toString(36).substring(2, 9),
-      createdAt: new Date().toISOString(),
-    };
-    setGoals((prev) => [...prev, newGoal]);
+    setGoals((prev) => [...prev, { ...goal, id: `goal_${Math.random().toString(36).substring(2, 9)}`, createdAt: new Date().toISOString() }]);
     playSuccess(settings.soundEnabled);
   }, [settings.soundEnabled]);
-
   const updateGoal = useCallback((id: string, updated: Partial<SavingsGoal>) => {
-    setGoals((prev) => prev.map((g) => (g.id === id ? { ...g, ...updated } : g)));
-    playClick(settings.soundEnabled);
+    setGoals((prev) => prev.map((goal) => goal.id === id ? { ...goal, ...updated } : goal)); playClick(settings.soundEnabled);
   }, [settings.soundEnabled]);
-
   const deleteGoal = useCallback((id: string) => {
-    setGoals((prev) => prev.filter((g) => g.id !== id));
-    playDelete(settings.soundEnabled);
+    setGoals((prev) => prev.filter((goal) => goal.id !== id)); playDelete(settings.soundEnabled);
   }, [settings.soundEnabled]);
-
   const depositToGoal = useCallback((goalId: string, amount: number, sourceAccountId?: string) => {
-    setGoals((prev) =>
-      prev.map((g) => {
-        if (g.id === goalId) {
-          const newAmount = g.currentAmount + amount;
-          if (newAmount >= g.targetAmount && g.currentAmount < g.targetAmount) {
-            playCelebration(settings.soundEnabled);
-          } else {
-            playSuccess(settings.soundEnabled);
-          }
-          return { ...g, currentAmount: newAmount };
-        }
-        return g;
-      })
-    );
-
-    if (sourceAccountId) {
-      setAccounts((prev) =>
-        prev.map((acc) => (acc.id === sourceAccountId ? { ...acc, balance: acc.balance - amount } : acc))
-      );
-    }
+    setGoals((prev) => prev.map((goal) => {
+      if (goal.id !== goalId) return goal;
+      const currentAmount = goal.currentAmount + amount;
+      if (currentAmount >= goal.targetAmount && goal.currentAmount < goal.targetAmount) playCelebration(settings.soundEnabled);
+      else playSuccess(settings.soundEnabled);
+      return { ...goal, currentAmount };
+    }));
+    if (sourceAccountId) setAccounts((prev) => prev.map((account) => account.id === sourceAccountId ? { ...account, balance: account.balance - amount } : account));
   }, [settings.soundEnabled]);
-
   const withdrawFromGoal = useCallback((goalId: string, amount: number, targetAccountId?: string) => {
-    setGoals((prev) =>
-      prev.map((g) => (g.id === goalId ? { ...g, currentAmount: Math.max(0, g.currentAmount - amount) } : g))
-    );
-    if (targetAccountId) {
-      setAccounts((prev) =>
-        prev.map((acc) => (acc.id === targetAccountId ? { ...acc, balance: acc.balance + amount } : acc))
-      );
-    }
+    setGoals((prev) => prev.map((goal) => goal.id === goalId ? { ...goal, currentAmount: Math.max(0, goal.currentAmount - amount) } : goal));
+    if (targetAccountId) setAccounts((prev) => prev.map((account) => account.id === targetAccountId ? { ...account, balance: account.balance + amount } : account));
     playClick(settings.soundEnabled);
   }, [settings.soundEnabled]);
 
   const addSubscription = useCallback((sub: Omit<Subscription, 'id'>) => {
-    const newSub: Subscription = {
-      ...sub,
-      id: 'sub_' + Math.random().toString(36).substring(2, 9),
-    };
-    setSubscriptions((prev) => [...prev, newSub]);
-    playSuccess(settings.soundEnabled);
+    setSubscriptions((prev) => [...prev, { ...sub, id: `sub_${Math.random().toString(36).substring(2, 9)}` }]); playSuccess(settings.soundEnabled);
   }, [settings.soundEnabled]);
-
   const updateSubscription = useCallback((id: string, updated: Partial<Subscription>) => {
-    setSubscriptions((prev) => prev.map((s) => (s.id === id ? { ...s, ...updated } : s)));
-    playClick(settings.soundEnabled);
+    setSubscriptions((prev) => prev.map((subscription) => subscription.id === id ? { ...subscription, ...updated } : subscription)); playClick(settings.soundEnabled);
   }, [settings.soundEnabled]);
-
   const deleteSubscription = useCallback((id: string) => {
-    setSubscriptions((prev) => prev.filter((s) => s.id !== id));
-    playDelete(settings.soundEnabled);
+    setSubscriptions((prev) => prev.filter((subscription) => subscription.id !== id)); playDelete(settings.soundEnabled);
   }, [settings.soundEnabled]);
-
   const markSubscriptionPaid = useCallback((id: string) => {
-    const sub = subscriptions.find((s) => s.id === id);
-    if (!sub) return;
+    const subscription = subscriptions.find((item) => item.id === id);
+    if (!subscription) return;
+    addTransaction({ type: 'expense', amount: subscription.amount, categoryId: subscription.categoryId, accountId: subscription.accountId,
+      date: new Date().toISOString().split('T')[0], merchant: subscription.name, description: 'Recurring subscription billing',
+      isRecurring: true, recurringId: subscription.id, tags: ['subscription'] });
+    const nextDate = new Date(`${subscription.nextBillingDate}T00:00:00`);
+    if (subscription.billingCycle === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
+    else if (subscription.billingCycle === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
+    else if (subscription.billingCycle === 'quarterly') nextDate.setMonth(nextDate.getMonth() + 3);
+    else nextDate.setFullYear(nextDate.getFullYear() + 1);
+    updateSubscription(id, { nextBillingDate: nextDate.toISOString().split('T')[0] }); playSuccess(settings.soundEnabled);
+  }, [addTransaction, settings.soundEnabled, subscriptions, updateSubscription]);
 
-    // Record as transaction
-    addTransaction({
-      type: 'expense',
-      amount: sub.amount,
-      categoryId: sub.categoryId,
-      accountId: sub.accountId,
-      date: new Date().toISOString().split('T')[0],
-      merchant: sub.name,
-      description: `Recurring subscription billing`,
-      isRecurring: true,
-      recurringId: sub.id,
-      tags: ['subscription'],
-    });
-
-    // Advance next billing date based on cycle
-    const curDate = new Date(sub.nextBillingDate + 'T00:00:00');
-    if (sub.billingCycle === 'weekly') curDate.setDate(curDate.getDate() + 7);
-    else if (sub.billingCycle === 'monthly') curDate.setMonth(curDate.getMonth() + 1);
-    else if (sub.billingCycle === 'quarterly') curDate.setMonth(curDate.getMonth() + 3);
-    else if (sub.billingCycle === 'yearly') curDate.setFullYear(curDate.getFullYear() + 1);
-
-    updateSubscription(id, { nextBillingDate: curDate.toISOString().split('T')[0] });
-    playSuccess(settings.soundEnabled);
-  }, [subscriptions, addTransaction, updateSubscription, settings.soundEnabled]);
-
-  const addAccount = useCallback((acc: Omit<Account, 'id'>) => {
-    const newAcc: Account = {
-      ...acc,
-      id: 'acc_' + Math.random().toString(36).substring(2, 9),
-    };
-    setAccounts((prev) => [...prev, newAcc]);
-    playSuccess(settings.soundEnabled);
+  const addAccount = useCallback((account: Omit<Account, 'id'>) => {
+    setAccounts((prev) => [...prev, { ...account, id: `acc_${Math.random().toString(36).substring(2, 9)}` }]); playSuccess(settings.soundEnabled);
   }, [settings.soundEnabled]);
-
   const updateAccount = useCallback((id: string, updated: Partial<Account>) => {
-    setAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, ...updated } : a)));
-    playClick(settings.soundEnabled);
+    setAccounts((prev) => prev.map((account) => account.id === id ? { ...account, ...updated } : account)); playClick(settings.soundEnabled);
   }, [settings.soundEnabled]);
-
   const deleteAccount = useCallback((id: string) => {
-    setAccounts((prev) => prev.filter((a) => a.id !== id));
-    playDelete(settings.soundEnabled);
+    setAccounts((prev) => prev.filter((account) => account.id !== id)); playDelete(settings.soundEnabled);
   }, [settings.soundEnabled]);
-
-  const addCategory = useCallback((cat: Omit<Category, 'id'>) => {
-    const newCat: Category = {
-      ...cat,
-      id: 'cat_' + Math.random().toString(36).substring(2, 9),
-    };
-    setCategories((prev) => [...prev, newCat]);
-    playSuccess(settings.soundEnabled);
+  const addCategory = useCallback((category: Omit<Category, 'id'>) => {
+    setCategories((prev) => [...prev, { ...category, id: `cat_${Math.random().toString(36).substring(2, 9)}` }]); playSuccess(settings.soundEnabled);
   }, [settings.soundEnabled]);
-
   const updateCategory = useCallback((id: string, updated: Partial<Category>) => {
-    setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, ...updated } : c)));
-    playClick(settings.soundEnabled);
+    setCategories((prev) => prev.map((category) => category.id === id ? { ...category, ...updated } : category)); playClick(settings.soundEnabled);
   }, [settings.soundEnabled]);
-
   const deleteCategory = useCallback((id: string) => {
-    setCategories((prev) => prev.filter((c) => c.id !== id));
-    playDelete(settings.soundEnabled);
+    setCategories((prev) => prev.filter((category) => category.id !== id)); playDelete(settings.soundEnabled);
   }, [settings.soundEnabled]);
-
   const updateSettings = useCallback((newSettings: Partial<AppSettings>) => {
-    setSettings((prev) => ({ ...prev, ...newSettings }));
-    playClick(settings.soundEnabled);
+    setSettings((prev) => ({ ...prev, ...newSettings })); playClick(settings.soundEnabled);
   }, [settings.soundEnabled]);
-
-  const togglePrivacyMode = useCallback(() => {
-    setSettings((prev) => ({ ...prev, privacyMode: !prev.privacyMode }));
-  }, []);
-
-  const resetToSampleData = useCallback(() => {
-    setTransactions(generateSampleTransactions());
-    setCategories(DEFAULT_CATEGORIES);
-    setAccounts(DEFAULT_ACCOUNTS);
-    setBudgets(DEFAULT_BUDGETS);
-    setGoals(DEFAULT_GOALS);
-    setSubscriptions(DEFAULT_SUBSCRIPTIONS);
-    setSettings(DEFAULT_SETTINGS);
-    playSuccess(true);
-  }, []);
-
+  const togglePrivacyMode = useCallback(() => setSettings((prev) => ({ ...prev, privacyMode: !prev.privacyMode })), []);
+  const resetToSampleData = useCallback(() => { applySnapshot(createDefaultSnapshot()); playSuccess(true); }, [applySnapshot]);
   const clearAllData = useCallback(() => {
-    setTransactions([]);
-    setBudgets([]);
-    setGoals([]);
-    setSubscriptions([]);
-    setAccounts([
-      { id: 'acc_main', name: 'Main Account', type: 'bank', balance: 0, currency: settings.currency, color: '#3b82f6' }
-    ]);
+    setTransactions([]); setBudgets([]); setGoals([]); setSubscriptions([]);
+    setAccounts([{ id: 'acc_main', name: 'Main Account', type: 'bank', balance: 0, currency: settings.currency, color: '#3b82f6' }]);
     playDelete(true);
   }, [settings.currency]);
-
   const restoreFromBackup = useCallback((data: FullBackupData) => {
-    if (data.transactions) setTransactions(data.transactions);
-    if (data.categories) setCategories(data.categories);
-    if (data.accounts) setAccounts(data.accounts);
-    if (data.budgets) setBudgets(data.budgets);
-    if (data.goals) setGoals(data.goals);
-    if (data.subscriptions) setSubscriptions(data.subscriptions);
-    if (data.settings) setSettings(data.settings);
+    applySnapshot({ version: '1.0.0', transactions: data.transactions || [], categories: data.categories || [], accounts: data.accounts || [],
+      budgets: data.budgets || [], goals: data.goals || [], subscriptions: data.subscriptions || [], settings: { ...DEFAULT_SETTINGS, ...data.settings } });
     playSuccess(true);
-  }, []);
+  }, [applySnapshot]);
 
-  return (
-    <FinanceContext.Provider
-      value={{
-        transactions,
-        categories,
-        accounts,
-        budgets,
-        goals,
-        subscriptions,
-        settings,
-        activeTab,
-        setActiveTab,
-        addTransaction,
-        updateTransaction,
-        deleteTransaction,
-        duplicateTransaction,
-        batchDeleteTransactions,
-        setBudget,
-        deleteBudget,
-        addGoal,
-        updateGoal,
-        deleteGoal,
-        depositToGoal,
-        withdrawFromGoal,
-        addSubscription,
-        updateSubscription,
-        deleteSubscription,
-        markSubscriptionPaid,
-        addAccount,
-        updateAccount,
-        deleteAccount,
-        addCategory,
-        updateCategory,
-        deleteCategory,
-        updateSettings,
-        togglePrivacyMode,
-        resetToSampleData,
-        clearAllData,
-        restoreFromBackup,
-      }}
-    >
-      {children}
-    </FinanceContext.Provider>
-  );
+  if (!isHydrated) return <div className="min-h-screen grid place-items-center bg-slate-950 text-slate-300 text-sm">Loading your secure finance data…</div>;
+
+  return <FinanceContext.Provider value={{
+    transactions, categories, accounts, budgets, goals, subscriptions, settings, activeTab, syncStatus, setActiveTab,
+    addTransaction, updateTransaction, deleteTransaction, duplicateTransaction, batchDeleteTransactions,
+    setBudget, deleteBudget, addGoal, updateGoal, deleteGoal, depositToGoal, withdrawFromGoal,
+    addSubscription, updateSubscription, deleteSubscription, markSubscriptionPaid,
+    addAccount, updateAccount, deleteAccount, addCategory, updateCategory, deleteCategory,
+    updateSettings, togglePrivacyMode, resetToSampleData, clearAllData, restoreFromBackup,
+  }}>{children}</FinanceContext.Provider>;
 };
 
 export const useFinance = (): FinanceContextType => {
   const context = useContext(FinanceContext);
-  if (!context) {
-    throw new Error('useFinance must be used within a FinanceProvider');
-  }
+  if (!context) throw new Error('useFinance must be used within a FinanceProvider');
   return context;
 };

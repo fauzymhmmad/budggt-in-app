@@ -119,3 +119,16 @@ Budggt.in respects your privacy:
 - **No Remote Servers or Trackers**: All financial transactions and account balances stay strictly stored in your browser's `localStorage`.
 - **Offline Ready**: Operates completely without an active internet connection.
 - **Portability**: Export full JSON backups or CSV files anytime to keep your data safe.
+
+---
+
+## ☁️ Cross-device sync with Supabase
+
+The application now stores every signed-in user's finance data in Supabase and syncs it across devices. Before deploying, run [supabase/schema.sql](./supabase/schema.sql) once in **Supabase Dashboard → SQL Editor → New query → Run**. The script creates the database table, enables row-level security, and only allows a signed-in user to read or change their own data.
+
+Then, in **Authentication → URL Configuration**, set both of these values:
+
+- Site URL: `https://fauzymhmmad.github.io/budggt-in-app/`
+- Additional Redirect URL: `https://fauzymhmmad.github.io/budggt-in-app/`
+
+Email magic-link sign-in must remain enabled in **Authentication → Providers → Email**. Sign in with the same email on every device; the first sign-in automatically migrates the data stored in that browser, and later devices load the protected cloud copy.
