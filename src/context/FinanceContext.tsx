@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Account,
   AppSettings,
@@ -24,6 +24,7 @@ import { supabase } from '../lib/supabase';
 
 const STORAGE_KEY = 'aurabudget_data_v1';
 const LEGACY_OWNER_KEY = 'aurabudget_data_v1_cloud_owner';
+const PENDING_SYNC_KEY = 'aurabudget_data_v1_pending_sync';
 
 const DEFAULT_SETTINGS: AppSettings = {
   currency: 'USD', language: 'en', dateFormat: 'YYYY-MM-DD', soundEnabled: true,
@@ -34,6 +35,7 @@ type SyncStatus = 'loading' | 'synced' | 'syncing' | 'conflict' | 'error';
 
 interface StoredSnapshot extends Omit<FinanceSnapshot, 'version'> { version?: string; }
 interface RemoteSnapshot { data: FinanceSnapshot; version: number; updated_at: string; }
+interface PendingSnapshot { userId: string; data: FinanceSnapshot; updatedAt: string; }
 
 interface FinanceContextType {
   transactions: Transaction[]; categories: Category[]; accounts: Account[]; budgets: Budget[];
@@ -101,6 +103,37 @@ const isRemoteSnapshot = (value: unknown): value is RemoteSnapshot => {
   return typeof snapshot.version === 'number' && isSnapshot(snapshot.data);
 };
 
+const readPendingSnapshot = (userId: string): PendingSnapshot | null => {
+  try {
+    const saved = localStorage.getItem(PENDING_SYNC_KEY);
+    if (!saved) return null;
+    const parsed: unknown = JSON.parse(saved);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const pending = parsed as Partial<PendingSnapshot>;
+    return pending.userId === userId && isSnapshot(pending.data)
+      ? { userId, data: { ...pending.data, version: '1.0.0' }, updatedAt: pending.updatedAt || new Date().toISOString() }
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+const writePendingSnapshot = (userId: string, data: FinanceSnapshot) => {
+  localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify({ userId, data, updatedAt: new Date().toISOString() } satisfies PendingSnapshot));
+};
+
+const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs = 12_000): Promise<T> => {
+  let timeoutId: number | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error('Supabase did not respond. Check your connection and try again.')), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+  }
+};
+
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const initialSnapshot = useMemo(readLocalSnapshot, []);
@@ -116,6 +149,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('loading');
   const remoteVersion = useRef(0);
   const lastPersistedSnapshot = useRef('');
+  const lastLocalSnapshot = useRef('');
+  const syncInFlight = useRef(false);
 
   const snapshot = useMemo<FinanceSnapshot>(() => ({
     version: '1.0.0', transactions, categories, accounts, budgets, goals, subscriptions, settings,
@@ -130,8 +165,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const loadRemoteSnapshot = useCallback(async (): Promise<RemoteSnapshot | null> => {
     if (!user) return null;
-    const { data, error } = await supabase.from('finance_snapshots')
-      .select('data, version, updated_at').eq('user_id', user.id).maybeSingle();
+    const { data, error } = await withTimeout(supabase.from('finance_snapshots')
+      .select('data, version, updated_at').eq('user_id', user.id).maybeSingle());
     if (error) throw error;
     return isRemoteSnapshot(data) ? data : null;
   }, [user]);
@@ -142,11 +177,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const hydrate = async () => {
       setIsHydrated(false); setSyncStatus('loading');
       try {
+        const pending = readPendingSnapshot(user.id);
         let remote = await loadRemoteSnapshot();
         if (!remote) {
           const legacyOwner = localStorage.getItem(LEGACY_OWNER_KEY);
-          const dataToMigrate = !legacyOwner || legacyOwner === user.id ? readLocalSnapshot() : createDefaultSnapshot();
-          const { data, error } = await supabase.rpc('save_finance_snapshot', { p_data: dataToMigrate, p_expected_version: 0 });
+          const dataToMigrate = pending?.data || (!legacyOwner || legacyOwner === user.id ? readLocalSnapshot() : createDefaultSnapshot());
+          const { data, error } = await withTimeout(supabase.rpc('save_finance_snapshot', { p_data: dataToMigrate, p_expected_version: 0 }));
           if (error) {
             remote = await loadRemoteSnapshot();
             if (!remote) throw error;
@@ -156,11 +192,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
         if (cancelled || !remote) return;
         remoteVersion.current = remote.version;
-        lastPersistedSnapshot.current = JSON.stringify(remote.data);
-        localStorage.setItem(STORAGE_KEY, lastPersistedSnapshot.current);
+        const dataToDisplay = pending?.data || remote.data;
+        const dataJson = JSON.stringify(dataToDisplay);
+        lastPersistedSnapshot.current = pending ? JSON.stringify(remote.data) : dataJson;
+        lastLocalSnapshot.current = dataJson;
+        localStorage.setItem(STORAGE_KEY, dataJson);
         localStorage.setItem(LEGACY_OWNER_KEY, user.id);
-        applySnapshot(remote.data);
-        setSyncStatus('synced');
+        applySnapshot(dataToDisplay);
+        setSyncStatus(pending ? 'syncing' : 'synced');
       } catch (error) {
         if (!cancelled) {
           console.error('Failed to load financial data from Supabase', error);
@@ -174,41 +213,70 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => { cancelled = true; };
   }, [applySnapshot, loadRemoteSnapshot, user]);
 
+  const enqueuePendingSync = useCallback(() => {
+    if (!user || syncInFlight.current) return;
+    syncInFlight.current = true;
+
+    void (async () => {
+      let conflictAttempts = 0;
+      try {
+        while (true) {
+          const pending = readPendingSnapshot(user.id);
+          if (!pending) break;
+
+          setSyncStatus('syncing');
+          const pendingJson = JSON.stringify(pending.data);
+          const { data, error } = await withTimeout(supabase.rpc('save_finance_snapshot', {
+            p_data: pending.data,
+            p_expected_version: remoteVersion.current,
+          }));
+
+          if (!error && isRemoteSnapshot(data)) {
+            remoteVersion.current = data.version;
+            lastPersistedSnapshot.current = pendingJson;
+            if (JSON.stringify(readPendingSnapshot(user.id)?.data) === pendingJson) {
+              localStorage.removeItem(PENDING_SYNC_KEY);
+            }
+            setSyncStatus('synced');
+            continue;
+          }
+
+          if (error?.code === '40001' && conflictAttempts < 1) {
+            conflictAttempts += 1;
+            const latest = await loadRemoteSnapshot();
+            if (latest) {
+              remoteVersion.current = latest.version;
+              continue;
+            }
+          }
+
+          console.error('Failed to save financial data to Supabase', error);
+          setSyncStatus(error?.code === '40001' ? 'conflict' : 'error');
+          break;
+        }
+      } catch (error) {
+        console.error('Failed to save financial data to Supabase', error);
+        setSyncStatus('error');
+      } finally {
+        syncInFlight.current = false;
+      }
+    })();
+  }, [loadRemoteSnapshot, user]);
+
+  // Save a local outbox before the changed values are visible. A reload therefore
+  // never loses a completed form submission, even while the network is slow.
+  useLayoutEffect(() => {
+    if (!user || !isHydrated || snapshotJson === lastLocalSnapshot.current) return;
+    localStorage.setItem(STORAGE_KEY, snapshotJson);
+    localStorage.setItem(LEGACY_OWNER_KEY, user.id);
+    writePendingSnapshot(user.id, snapshot);
+    lastLocalSnapshot.current = snapshotJson;
+  }, [isHydrated, snapshot, snapshotJson, user]);
+
   useEffect(() => {
     if (!user || !isHydrated || snapshotJson === lastPersistedSnapshot.current) return;
-    const timeout = window.setTimeout(() => {
-      void (async () => {
-        setSyncStatus('syncing');
-        const { data, error } = await supabase.rpc('save_finance_snapshot', {
-          p_data: snapshot, p_expected_version: remoteVersion.current,
-        });
-        if (error || !isRemoteSnapshot(data)) {
-          try {
-            const latest = await loadRemoteSnapshot();
-            if (latest && latest.version > remoteVersion.current) {
-              remoteVersion.current = latest.version;
-              lastPersistedSnapshot.current = JSON.stringify(latest.data);
-              localStorage.setItem(STORAGE_KEY, lastPersistedSnapshot.current);
-              applySnapshot(latest.data);
-              setSyncStatus('conflict');
-              return;
-            }
-          } catch (loadError) {
-            console.error('Failed to recover finance data after a sync error', loadError);
-          }
-          console.error('Failed to save financial data to Supabase', error);
-          setSyncStatus('error');
-          return;
-        }
-        remoteVersion.current = data.version;
-        lastPersistedSnapshot.current = snapshotJson;
-        localStorage.setItem(STORAGE_KEY, snapshotJson);
-        localStorage.setItem(LEGACY_OWNER_KEY, user.id);
-        setSyncStatus('synced');
-      })();
-    }, 500);
-    return () => window.clearTimeout(timeout);
-  }, [applySnapshot, isHydrated, loadRemoteSnapshot, snapshot, snapshotJson, user]);
+    enqueuePendingSync();
+  }, [enqueuePendingSync, isHydrated, snapshotJson, user]);
 
   useEffect(() => {
     if (!user || !isHydrated) return;
