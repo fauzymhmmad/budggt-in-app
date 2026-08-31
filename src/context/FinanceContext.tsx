@@ -19,6 +19,7 @@ import {
 } from '../utils/sampleData';
 import { FullBackupData } from '../utils/exportImport';
 import { playCelebration, playClick, playDelete, playSuccess } from '../utils/soundEffects';
+import { applyAccountBalanceChanges, getAccountBalanceChanges } from '../utils/accountBalances';
 import { useAuth } from './AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -298,26 +299,30 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const addTransaction = useCallback((tx: Omit<Transaction, 'id' | 'createdAt'>): Transaction => {
     const newTx: Transaction = { ...tx, id: `tx_${Math.random().toString(36).substring(2, 9)}`, createdAt: new Date().toISOString() };
     setTransactions((prev) => [newTx, ...prev]);
-    setAccounts((prev) => prev.map((account) => {
-      if (tx.type === 'income' && account.id === tx.accountId) return { ...account, balance: account.balance + tx.amount };
-      if (tx.type === 'expense' && account.id === tx.accountId) return { ...account, balance: account.balance - tx.amount };
-      if (tx.type === 'transfer') {
-        if (account.id === tx.accountId) return { ...account, balance: account.balance - tx.amount };
-        if (account.id === tx.toAccountId) return { ...account, balance: account.balance + tx.amount };
-      }
-      return account;
-    }));
+    setAccounts((prev) => applyAccountBalanceChanges(prev, getAccountBalanceChanges(newTx)));
     playSuccess(settings.soundEnabled);
     return newTx;
   }, [settings.soundEnabled]);
 
   const updateTransaction = useCallback((id: string, updated: Partial<Transaction>) => {
+    const existing = transactions.find((tx) => tx.id === id);
+    if (!existing) return;
+    const nextTransaction = { ...existing, ...updated };
     setTransactions((prev) => prev.map((tx) => tx.id === id ? { ...tx, ...updated } : tx));
+    setAccounts((prev) => applyAccountBalanceChanges(
+      prev,
+      getAccountBalanceChanges(existing, -1),
+      getAccountBalanceChanges(nextTransaction),
+    ));
     playClick(settings.soundEnabled);
-  }, [settings.soundEnabled]);
+  }, [settings.soundEnabled, transactions]);
   const deleteTransaction = useCallback((id: string) => {
-    setTransactions((prev) => prev.filter((tx) => tx.id !== id)); playDelete(settings.soundEnabled);
-  }, [settings.soundEnabled]);
+    const existing = transactions.find((tx) => tx.id === id);
+    if (!existing) return;
+    setTransactions((prev) => prev.filter((tx) => tx.id !== id));
+    setAccounts((prev) => applyAccountBalanceChanges(prev, getAccountBalanceChanges(existing, -1)));
+    playDelete(settings.soundEnabled);
+  }, [settings.soundEnabled, transactions]);
   const duplicateTransaction = useCallback((id: string) => {
     const existing = transactions.find((tx) => tx.id === id);
     if (existing) addTransaction({ type: existing.type, amount: existing.amount, categoryId: existing.categoryId,
@@ -325,8 +330,16 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       merchant: `${existing.merchant} (Copy)`, description: existing.description, tags: existing.tags ? [...existing.tags] : [] });
   }, [addTransaction, transactions]);
   const batchDeleteTransactions = useCallback((ids: string[]) => {
-    const idSet = new Set(ids); setTransactions((prev) => prev.filter((tx) => !idSet.has(tx.id))); playDelete(settings.soundEnabled);
-  }, [settings.soundEnabled]);
+    const idSet = new Set(ids);
+    const deletedTransactions = transactions.filter((tx) => idSet.has(tx.id));
+    if (deletedTransactions.length === 0) return;
+    setTransactions((prev) => prev.filter((tx) => !idSet.has(tx.id)));
+    setAccounts((prev) => applyAccountBalanceChanges(
+      prev,
+      ...deletedTransactions.map((tx) => getAccountBalanceChanges(tx, -1)),
+    ));
+    playDelete(settings.soundEnabled);
+  }, [settings.soundEnabled, transactions]);
 
   const setBudget = useCallback((categoryId: string, amount: number, alertThreshold = 80) => {
     setBudgets((prev) => {

@@ -8,6 +8,7 @@ import {
   calculateCategorySpending,
 } from '../utils/calculations';
 import { Transaction, Category, Budget } from '../types/finance';
+import { applyAccountBalanceChanges, getAccountBalanceChanges } from '../utils/accountBalances';
 
 describe('Financial Formatters', () => {
   it('formats USD currency correctly', () => {
@@ -63,7 +64,7 @@ describe('Financial Calculations', () => {
       },
     ];
 
-    const summary = calculateMonthlySummary(transactions);
+    const summary = calculateMonthlySummary(transactions, today, today);
     expect(summary.totalIncome).toBe(5000);
     expect(summary.totalExpense).toBe(2000);
     expect(summary.netSavings).toBe(3000);
@@ -116,10 +117,29 @@ describe('Financial Calculations', () => {
       },
     ];
 
-    const spending = calculateCategorySpending(transactions, categories, budgets);
+    const spending = calculateCategorySpending(transactions, categories, budgets, today, today);
     expect(spending.length).toBe(1);
     expect(spending[0].spent).toBe(450);
     expect(spending[0].percentageOfBudget).toBe(90);
     expect(spending[0].status).toBe('warning'); // 90% is above 80% threshold
+  });
+});
+
+describe('Account balance changes', () => {
+  it('moves the balance between bank accounts and can reverse the transfer', () => {
+    const accounts = [
+      { id: 'bank_a', name: 'Bank A', type: 'bank' as const, balance: 500, currency: 'USD', color: '#000' },
+      { id: 'bank_b', name: 'Bank B', type: 'bank' as const, balance: 100, currency: 'USD', color: '#000' },
+    ];
+    const transfer: Transaction = {
+      id: 'transfer_1', type: 'transfer', amount: 125, categoryId: '', accountId: 'bank_a', toAccountId: 'bank_b',
+      date: '2026-08-31', merchant: 'Move funds', createdAt: '2026-08-31T00:00:00.000Z',
+    };
+
+    const afterTransfer = applyAccountBalanceChanges(accounts, getAccountBalanceChanges(transfer));
+    expect(afterTransfer.map((account) => account.balance)).toEqual([375, 225]);
+
+    const afterDeletion = applyAccountBalanceChanges(afterTransfer, getAccountBalanceChanges(transfer, -1));
+    expect(afterDeletion.map((account) => account.balance)).toEqual([500, 100]);
   });
 });

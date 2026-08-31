@@ -91,6 +91,11 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       return;
     }
 
+    if (type === 'transfer' && (!toAccountId || toAccountId === accountId)) {
+      alert(t('transferAccountRequired'));
+      return;
+    }
+
     const parsedTags = tags
       .split(',')
       .map((t) => t.trim())
