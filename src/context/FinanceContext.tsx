@@ -27,8 +27,18 @@ const STORAGE_KEY = 'aurabudget_data_v1';
 const LEGACY_OWNER_KEY = 'aurabudget_data_v1_cloud_owner';
 const PENDING_SYNC_KEY = 'aurabudget_data_v1_pending_sync';
 
+const getInitialLanguage = (): 'en' | 'id' => {
+  try {
+    const saved = localStorage.getItem('aurabudget_language');
+    if (saved === 'en' || saved === 'id') return saved;
+  } catch {
+    // ignore
+  }
+  return 'en';
+};
+
 const DEFAULT_SETTINGS: AppSettings = {
-  currency: 'USD', language: 'en', dateFormat: 'YYYY-MM-DD', soundEnabled: true,
+  currency: 'USD', language: getInitialLanguage(), dateFormat: 'YYYY-MM-DD', soundEnabled: true,
   privacyMode: false, startOfMonthDay: 1, theme: 'dark',
 };
 
@@ -63,7 +73,7 @@ interface FinanceContextType {
   resetToSampleData: () => void; clearAllData: () => void; restoreFromBackup: (data: FullBackupData) => void;
 }
 
-const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
+export const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
 const createDefaultSnapshot = (): FinanceSnapshot => ({
   version: '1.0.0', transactions: generateSampleTransactions(), categories: DEFAULT_CATEGORIES,

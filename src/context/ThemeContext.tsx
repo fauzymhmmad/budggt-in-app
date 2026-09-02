@@ -11,38 +11,70 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setThemeState] = useState<ThemeMode>(() => {
-    const saved = localStorage.getItem('aurabudget_theme');
-    return (saved as ThemeMode) || 'dark';
-  });
+const getSavedTheme = (): ThemeMode => {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const saved = window.localStorage.getItem('aurabudget_theme');
+      if (saved === 'light' || saved === 'dark' || saved === 'oled' || saved === 'system') {
+        return saved;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return 'dark';
+};
 
-  const [systemDark, setSystemDark] = useState<boolean>(() => {
-    return typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)').matches : true;
-  });
+const getInitialSystemDark = (): boolean => {
+  try {
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+  } catch {
+    // ignore
+  }
+  return true;
+};
+
+export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [theme, setThemeState] = useState<ThemeMode>(getSavedTheme);
+  const [systemDark, setSystemDark] = useState<boolean>(getInitialSystemDark);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches);
-    mediaQuery.addEventListener('change', handler);
-    return () => mediaQuery.removeEventListener('change', handler);
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    try {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches);
+      mediaQuery.addEventListener('change', handler);
+      return () => mediaQuery.removeEventListener('change', handler);
+    } catch {
+      // ignore
+    }
   }, []);
 
   const resolvedTheme: 'light' | 'dark' | 'oled' =
     theme === 'system' ? (systemDark ? 'dark' : 'light') : theme;
 
   useEffect(() => {
-    localStorage.setItem('aurabudget_theme', theme);
-    const root = document.documentElement;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem('aurabudget_theme', theme);
+      }
+    } catch {
+      // ignore
+    }
 
-    root.classList.remove('dark', 'oled', 'light');
+    if (typeof document !== 'undefined') {
+      const root = document.documentElement;
+      root.classList.remove('dark', 'oled', 'light');
 
-    if (resolvedTheme === 'oled') {
-      root.classList.add('dark', 'oled');
-    } else if (resolvedTheme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.add('light');
+      if (resolvedTheme === 'oled') {
+        root.classList.add('dark', 'oled');
+      } else if (resolvedTheme === 'dark') {
+        root.classList.add('dark');
+      } else {
+        root.classList.add('light');
+      }
     }
   }, [theme, resolvedTheme]);
 
