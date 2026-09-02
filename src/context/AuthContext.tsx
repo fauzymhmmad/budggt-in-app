@@ -5,6 +5,9 @@ import { supabase } from '../lib/supabase';
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
+  signInWithPassword: (email: string, password: string) => Promise<void>;
+  signUpWithPassword: (email: string, password: string) => Promise<{ needsEmailConfirmation?: boolean }>;
+  resetPassword: (email: string) => Promise<void>;
   sendMagicLink: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -36,10 +39,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  const signInWithPassword = async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    if (error) throw error;
+    if (data.session) {
+      setSession(data.session);
+    }
+  };
+
+  const signUpWithPassword = async (email: string, password: string) => {
+    const redirectTo = `${window.location.origin}${window.location.pathname}`;
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { emailRedirectTo: redirectTo },
+    });
+    if (error) throw error;
+    if (data.session) {
+      setSession(data.session);
+      return { needsEmailConfirmation: false };
+    }
+    return { needsEmailConfirmation: true };
+  };
+
+  const resetPassword = async (email: string) => {
+    const redirectTo = `${window.location.origin}${window.location.pathname}`;
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo,
+    });
+    if (error) throw error;
+  };
+
   const sendMagicLink = async (email: string) => {
     const redirectTo = `${window.location.origin}${window.location.pathname}`;
     const { error } = await supabase.auth.signInWithOtp({
-      email,
+      email: email.trim(),
       options: { emailRedirectTo: redirectTo },
     });
     if (error) throw error;
@@ -48,10 +85,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    setSession(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user: session?.user ?? null, isLoading, sendMagicLink, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user: session?.user ?? null,
+        isLoading,
+        signInWithPassword,
+        signUpWithPassword,
+        resetPassword,
+        sendMagicLink,
+        signOut,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
