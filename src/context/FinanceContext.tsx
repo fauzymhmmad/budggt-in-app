@@ -180,9 +180,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       try {
         const pending = readPendingSnapshot(user.id);
         let remote = await loadRemoteSnapshot();
+        const isTargetUser = user.email?.trim().toLowerCase() === 'fauzimhmmad@gmail.com';
+
         if (!remote) {
           const legacyOwner = localStorage.getItem(LEGACY_OWNER_KEY);
-          const dataToMigrate = pending?.data || (!legacyOwner || legacyOwner === user.id ? readLocalSnapshot() : createDefaultSnapshot());
+          // Never overwrite with default sample data if it's the target user or if valid local data is present
+          const dataToMigrate = pending?.data || (isTargetUser || !legacyOwner || legacyOwner === user.id ? readLocalSnapshot() : createDefaultSnapshot());
           const { data, error } = await withTimeout(supabase.rpc('save_finance_snapshot', { p_data: dataToMigrate, p_expected_version: 0 }));
           if (error) {
             remote = await loadRemoteSnapshot();

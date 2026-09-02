@@ -21,6 +21,7 @@ import { Transaction } from './types/finance';
 import { CalendarCheck, BarChart3, Calculator, Settings } from 'lucide-react';
 import { useTranslation } from './hooks/useTranslation';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthScreen } from './components/auth/AuthScreen';
 
 const MainAppContent: React.FC = () => {
   const { activeTab, setActiveTab, togglePrivacyMode } = useFinance();
@@ -150,65 +151,10 @@ const MainAppContent: React.FC = () => {
   );
 };
 
-const SignInScreen: React.FC = () => {
-  const { sendMagicLink } = useAuth();
-  const [email, setEmail] = useState('');
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-  const [isSending, setIsSending] = useState(false);
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setError('');
-    setMessage('');
-    setIsSending(true);
-    try {
-      await sendMagicLink(email.trim());
-      setMessage('Check your email for a secure sign-in link.');
-    } catch (signInError) {
-      setError(signInError instanceof Error ? signInError.message : 'Unable to send the sign-in link.');
-    } finally {
-      setIsSending(false);
-    }
-  };
-
-  return (
-    <main className="min-h-screen grid place-items-center bg-slate-950 px-4 text-slate-100">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-3xl border border-slate-800 bg-slate-900 p-7 shadow-2xl">
-        <div className="mb-6">
-          <p className="text-sm font-semibold text-emerald-400">Budggt.in</p>
-          <h1 className="mt-2 text-2xl font-bold">Your finances, on every device.</h1>
-          <p className="mt-2 text-sm text-slate-400">Sign in with the same email anywhere to access your private data.</p>
-        </div>
-        <label className="block text-sm font-medium text-slate-300" htmlFor="email">Email address</label>
-        <input
-          id="email"
-          type="email"
-          required
-          autoComplete="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          placeholder="you@example.com"
-          className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm outline-none ring-emerald-500 placeholder:text-slate-500 focus:ring-2"
-        />
-        {message && <p className="mt-3 text-sm text-emerald-400">{message}</p>}
-        {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
-        <button
-          type="submit"
-          disabled={isSending}
-          className="mt-5 w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isSending ? 'Sending link…' : 'Email me a sign-in link'}
-        </button>
-      </form>
-    </main>
-  );
-};
-
 const AuthenticatedApp: React.FC = () => {
   const { user, isLoading } = useAuth();
   if (isLoading) return <div className="min-h-screen grid place-items-center bg-slate-950 text-slate-300 text-sm">Checking your session…</div>;
-  if (!user) return <SignInScreen />;
+  if (!user) return <AuthScreen />;
 
   return (
     <ThemeProvider>
