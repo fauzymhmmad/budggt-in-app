@@ -2,21 +2,53 @@ import React, { useState, useMemo } from 'react';
 import { Plus, PieChart, Sparkles } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { useTranslation } from '../../hooks/useTranslation';
-import { calculateCategorySpending } from '../../utils/calculations';
+import { calculateCategorySpending, filterTransactionsByDateRange, getCurrentMonthDateRange } from '../../utils/calculations';
 import { BudgetCard } from './BudgetCard';
 import { BudgetModal } from './BudgetModal';
-import { Category } from '../../types/finance';
+import { Category, Transaction } from '../../types/finance';
 import { formatCurrency, formatPercentage } from '../../utils/formatters';
 
-export const BudgetSummary: React.FC = () => {
+interface BudgetSummaryProps {
+  onEditTransaction: (transaction: Transaction) => void;
+}
+
+export const BudgetSummary: React.FC<BudgetSummaryProps> = ({ onEditTransaction }) => {
   const { transactions, categories, budgets, deleteBudget, settings } = useFinance();
   const { t } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [categoryToEdit, setCategoryToEdit] = useState<Category | null>(null);
 
+  const budgetPeriod = useMemo(
+    () => getCurrentMonthDateRange(settings.startOfMonthDay),
+    [settings.startOfMonthDay],
+  );
+
   const spendingList = useMemo(() => {
-    return calculateCategorySpending(transactions, categories, budgets);
-  }, [transactions, categories, budgets]);
+    return calculateCategorySpending(
+      transactions,
+      categories,
+      budgets,
+      budgetPeriod.startDate,
+      budgetPeriod.endDate,
+      true,
+    );
+  }, [transactions, categories, budgets, budgetPeriod]);
+
+  const budgetTransactionsByCategory = useMemo(() => {
+    const transactionsByCategory = new Map<string, Transaction[]>();
+    filterTransactionsByDateRange(transactions, budgetPeriod.startDate, budgetPeriod.endDate)
+      .filter((transaction) => transaction.type === 'expense')
+      .forEach((transaction) => {
+        const categoryTransactions = transactionsByCategory.get(transaction.categoryId) || [];
+        categoryTransactions.push(transaction);
+        transactionsByCategory.set(transaction.categoryId, categoryTransactions);
+      });
+
+    transactionsByCategory.forEach((categoryTransactions) => {
+      categoryTransactions.sort((a, b) => b.date.localeCompare(a.date));
+    });
+    return transactionsByCategory;
+  }, [transactions, budgetPeriod]);
 
   const budgetedList = spendingList.filter((item) => (item.budgetLimit || 0) > 0);
   const unbudgetedCategories = categories.filter(
@@ -113,7 +145,9 @@ export const BudgetSummary: React.FC = () => {
               <BudgetCard
                 key={item.categoryId}
                 item={item}
+                transactions={budgetTransactionsByCategory.get(item.categoryId) || []}
                 onEdit={() => handleOpenSetBudget(cat)}
+                onEditTransaction={onEditTransaction}
                 onDelete={() => {
                   if (window.confirm(`${t('removeBudgetConfirm')} ${item.categoryName}?`)) {
                     deleteBudget(item.categoryId);

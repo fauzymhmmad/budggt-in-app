@@ -123,6 +123,26 @@ describe('Financial Calculations', () => {
     expect(spending[0].percentageOfBudget).toBe(90);
     expect(spending[0].status).toBe('warning'); // 90% is above 80% threshold
   });
+
+  it('retains configured category budgets with no spending for the period', () => {
+    const today = new Date().toISOString().split('T')[0];
+    const categories: Category[] = [
+      { id: 'cat_food', name: 'Food & Dining', type: 'expense', icon: 'Utensils', color: '#f97316' },
+      { id: 'cat_groceries', name: 'Groceries', type: 'expense', icon: 'ShoppingCart', color: '#10b981' },
+    ];
+    const budgets: Budget[] = [
+      { id: 'b1', categoryId: 'cat_food', amount: 500, period: 'monthly', alertThreshold: 80 },
+      { id: 'b2', categoryId: 'cat_groceries', amount: 300, period: 'monthly', alertThreshold: 80 },
+    ];
+
+    const spending = calculateCategorySpending([], categories, budgets, today, today, true);
+
+    expect(spending).toHaveLength(2);
+    expect(spending).toEqual(expect.arrayContaining([
+      expect.objectContaining({ categoryId: 'cat_food', spent: 0, budgetLimit: 500 }),
+      expect.objectContaining({ categoryId: 'cat_groceries', spent: 0, budgetLimit: 300 }),
+    ]));
+  });
 });
 
 describe('Account balance changes', () => {

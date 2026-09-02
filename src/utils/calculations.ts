@@ -90,7 +90,8 @@ export function calculateCategorySpending(
   categories: Category[],
   budgets: Budget[],
   startDate?: string,
-  endDate?: string
+  endDate?: string,
+  includeBudgetedCategories = false,
 ): CategorySpending[] {
   const range = startDate && endDate ? { startDate, endDate } : getCurrentMonthDateRange();
   const monthlyTxs = filterTransactionsByDateRange(transactions, range.startDate, range.endDate);
@@ -113,8 +114,15 @@ export function calculateCategorySpending(
   });
 
   const results: CategorySpending[] = [];
+  // A budget can remain visible even when there have been no matching expenses
+  // during the selected period. This is opt-in so spending charts continue to
+  // show only categories that have actual spending.
+  const categoryIds = includeBudgetedCategories
+    ? new Set([...spentMap.keys(), ...budgetMap.keys()])
+    : new Set(spentMap.keys());
 
-  spentMap.forEach((spent, categoryId) => {
+  categoryIds.forEach((categoryId) => {
+    const spent = spentMap.get(categoryId) || 0;
     const cat = categoryMap.get(categoryId) || {
       id: categoryId,
       name: 'Uncategorized',
