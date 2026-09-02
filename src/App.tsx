@@ -86,7 +86,7 @@ const MainAppContent: React.FC = () => {
               onEditTransaction={handleEditTransaction}
             />
           )}
-          {activeTab === 'budgets' && <BudgetSummary />}
+          {activeTab === 'budgets' && <BudgetSummary onEditTransaction={handleEditTransaction} />}
           {activeTab === 'goals' && <GoalsView />}
           {activeTab === 'subscriptions' && <UpcomingCalendar />}
           {activeTab === 'analytics' && <AnalyticsView />}

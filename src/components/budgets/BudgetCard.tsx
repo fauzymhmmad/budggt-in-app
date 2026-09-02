@@ -1,20 +1,30 @@
-import React from 'react';
-import { Edit2, Trash2, AlertTriangle, AlertCircle, CheckCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Edit2, Trash2, AlertTriangle, AlertCircle, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { ProgressBar } from '../ui/ProgressBar';
 import { useFinance } from '../../context/FinanceContext';
 import { CategorySpending } from '../../utils/calculations';
 import { formatCurrency, formatPercentage } from '../../utils/formatters';
 import { useTranslation } from '../../hooks/useTranslation';
+import { Transaction } from '../../types/finance';
 
 interface BudgetCardProps {
   item: CategorySpending;
+  transactions: Transaction[];
   onEdit: () => void;
   onDelete: () => void;
+  onEditTransaction: (transaction: Transaction) => void;
 }
 
-export const BudgetCard: React.FC<BudgetCardProps> = ({ item, onEdit, onDelete }) => {
+export const BudgetCard: React.FC<BudgetCardProps> = ({
+  item,
+  transactions,
+  onEdit,
+  onDelete,
+  onEditTransaction,
+}) => {
   const { settings } = useFinance();
   const { t } = useTranslation();
+  const [isBreakdownOpen, setIsBreakdownOpen] = useState(false);
 
   const limit = item.budgetLimit || 0;
   const spent = item.spent;
@@ -136,6 +146,46 @@ export const BudgetCard: React.FC<BudgetCardProps> = ({ item, onEdit, onDelete }
             </span>
           )}
         </div>
+      </div>
+
+      <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+        <button
+          type="button"
+          onClick={() => setIsBreakdownOpen((open) => !open)}
+          aria-expanded={isBreakdownOpen}
+          className="w-full flex items-center justify-between text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 transition-colors"
+        >
+          <span>{t('budgetBreakdown')} ({transactions.length})</span>
+          {isBreakdownOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+
+        {isBreakdownOpen && (
+          <div className="mt-3 space-y-1.5 max-h-52 overflow-y-auto pr-1">
+            {transactions.length === 0 ? (
+              <p className="py-2 text-center text-xs text-slate-400">{t('noBudgetTransactions')}</p>
+            ) : (
+              transactions.map((transaction) => (
+                <button
+                  key={transaction.id}
+                  type="button"
+                  onClick={() => onEditTransaction(transaction)}
+                  className="w-full flex items-center justify-between gap-3 rounded-lg px-2 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  title={t('editTransaction')}
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-xs font-medium text-slate-700 dark:text-slate-200">
+                      {transaction.merchant}
+                    </span>
+                    <span className="block text-[11px] text-slate-400">{transaction.date}</span>
+                  </span>
+                  <span className="shrink-0 font-mono text-xs font-semibold text-rose-500">
+                    {formatCurrency(transaction.amount, settings.currency, settings.privacyMode)}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

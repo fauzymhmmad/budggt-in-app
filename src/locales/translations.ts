@@ -144,6 +144,8 @@ export const translations = {
     statusWarning: 'Warning',
     statusExceeded: 'Exceeded',
     removeBudgetConfirm: 'Remove budget limit for',
+    budgetBreakdown: 'Transactions',
+    noBudgetTransactions: 'No spending recorded in this budget period.',
 
     // Savings Goals
     savingsGoalsHeader: 'Savings Goals & Sinking Funds',
@@ -612,6 +614,8 @@ export const translations = {
     statusWarning: 'Waspada',
     statusExceeded: 'Terlampaui',
     removeBudgetConfirm: 'Hapus batas anggaran untuk',
+    budgetBreakdown: 'Transaksi',
+    noBudgetTransactions: 'Belum ada pengeluaran pada periode anggaran ini.',
 
     // Target Tabungan
     savingsGoalsHeader: 'Target Tabungan & Dana Khusus',
