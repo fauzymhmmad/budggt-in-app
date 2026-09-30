@@ -6,54 +6,94 @@ import { useFinance } from '../../context/FinanceContext';
 import { Category } from '../../types/finance';
 import { useTranslation } from '../../hooks/useTranslation';
 
+export interface BudgetEditTarget {
+  id?: string;
+  categoryId: string;
+  accountId?: string;
+  amount: number;
+  alertThreshold?: number;
+}
+
 interface BudgetModalProps {
   isOpen: boolean;
   onClose: () => void;
   categoryToBudget?: Category | null;
+  budgetToEdit?: BudgetEditTarget | null;
 }
 
 export const BudgetModal: React.FC<BudgetModalProps> = ({
   isOpen,
   onClose,
   categoryToBudget,
+  budgetToEdit,
 }) => {
-  const { categories, budgets, setBudget, settings } = useFinance();
+  const { categories, accounts, budgets, setBudget, settings } = useFinance();
   const { t } = useTranslation();
 
+  const [budgetId, setBudgetId] = useState<string | undefined>(undefined);
   const [categoryId, setCategoryId] = useState<string>('');
+  const [accountId, setAccountId] = useState<string>('all');
   const [amount, setAmount] = useState<string>('');
   const [alertThreshold, setAlertThreshold] = useState<number>(80);
 
   const expenseCategories = categories.filter((c) => c.type === 'expense');
 
   useEffect(() => {
-    if (categoryToBudget) {
+    if (!isOpen) return;
+
+    if (budgetToEdit) {
+      setBudgetId(budgetToEdit.id);
+      setCategoryId(budgetToEdit.categoryId);
+      setAccountId(budgetToEdit.accountId || 'all');
+      setAmount(budgetToEdit.amount.toString());
+      setAlertThreshold(budgetToEdit.alertThreshold || 80);
+    } else if (categoryToBudget) {
+      setBudgetId(undefined);
       setCategoryId(categoryToBudget.id);
-      const existing = budgets.find((b) => b.categoryId === categoryToBudget.id);
+      setAccountId('all');
+      const existing = budgets.find(
+        (b) => b.categoryId === categoryToBudget.id && !b.accountId
+      );
       if (existing) {
+        setBudgetId(existing.id);
         setAmount(existing.amount.toString());
         setAlertThreshold(existing.alertThreshold || 80);
       } else {
-        setAmount('300');
+        setAmount('300000');
         setAlertThreshold(80);
       }
     } else {
+      setBudgetId(undefined);
       const firstCat = expenseCategories[0];
       if (firstCat) {
         setCategoryId(firstCat.id);
-        const existing = budgets.find((b) => b.categoryId === firstCat.id);
-        setAmount(existing ? existing.amount.toString() : '300');
-        setAlertThreshold(existing?.alertThreshold || 80);
+        setAccountId('all');
+        const existing = budgets.find((b) => b.categoryId === firstCat.id && !b.accountId);
+        if (existing) {
+          setBudgetId(existing.id);
+          setAmount(existing.amount.toString());
+          setAlertThreshold(existing.alertThreshold || 80);
+        } else {
+          setAmount('300000');
+          setAlertThreshold(80);
+        }
       }
     }
-  }, [categoryToBudget, isOpen, budgets]);
+  }, [budgetToEdit, categoryToBudget, isOpen, budgets]);
 
-  const handleCategoryChange = (newCatId: string) => {
+  const handleCategoryOrAccountChange = (newCatId: string, newAccId: string) => {
     setCategoryId(newCatId);
-    const existing = budgets.find((b) => b.categoryId === newCatId);
+    setAccountId(newAccId);
+    const normalizedAcc = newAccId === 'all' ? undefined : newAccId;
+    const existing = budgets.find(
+      (b) => b.categoryId === newCatId && (b.accountId || undefined) === normalizedAcc
+    );
     if (existing) {
+      setBudgetId(existing.id);
       setAmount(existing.amount.toString());
       setAlertThreshold(existing.alertThreshold || 80);
+    } else if (!budgetToEdit) {
+      setBudgetId(undefined);
     }
   };
 
@@ -61,11 +101,17 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
     e.preventDefault();
     const num = parseFloat(amount);
     if (isNaN(num) || num <= 0) {
-      alert(t('validBudgetAmount'));
+      alert(t('validBudgetAmount') || 'Please enter a valid budget amount');
       return;
     }
 
-    setBudget(categoryId, num, alertThreshold);
+    setBudget(
+      categoryId,
+      num,
+      alertThreshold,
+      accountId === 'all' ? undefined : accountId,
+      budgetId
+    );
     onClose();
   };
 
@@ -85,7 +131,7 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
           </label>
           <select
             value={categoryId}
-            onChange={(e) => handleCategoryChange(e.target.value)}
+            onChange={(e) => handleCategoryOrAccountChange(e.target.value, accountId)}
             className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 cursor-pointer"
           >
             {expenseCategories.map((c) => (
@@ -94,6 +140,32 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Bank / Account Select */}
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
+            {t('account') || 'Account'} / Bank
+          </label>
+          <div className="relative">
+            <select
+              value={accountId}
+              onChange={(e) => handleCategoryOrAccountChange(categoryId, e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 cursor-pointer"
+            >
+              <option value="all">🌐 {t('allAccountsBudget') || 'Semua Akun (Gabungan)'}</option>
+              {accounts.map((acc) => (
+                <option key={acc.id} value={acc.id}>
+                  🏦 {acc.name} ({acc.type})
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+            {accountId === 'all'
+              ? (t('allAccountsBudgetDesc') || 'Anggaran ini akan menghitung pengeluaran kategori dari seluruh akun.')
+              : (t('specificAccountBudgetDesc') || 'Anggaran ini hanya akan menghitung pengeluaran kategori yang dibayar melalui akun ini.')}
+          </p>
         </div>
 
         {/* Monthly Limit Amount */}

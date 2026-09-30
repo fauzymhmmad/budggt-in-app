@@ -42,6 +42,7 @@ export interface Transaction {
 export interface Budget {
   id: string;
   categoryId: string;
+  accountId?: string; // Optional: specific account id or undefined for all accounts
   amount: number; // Monthly spending limit
   period: 'monthly' | 'weekly' | 'annual';
   alertThreshold: number; // Percentage, e.g. 80

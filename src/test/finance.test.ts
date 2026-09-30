@@ -8,7 +8,7 @@ import {
   calculateCategorySpending,
   getMonthDateRange,
 } from '../utils/calculations';
-import { Transaction, Category, Budget } from '../types/finance';
+import { Account, Transaction, Category, Budget } from '../types/finance';
 import { applyAccountBalanceChanges, getAccountBalanceChanges } from '../utils/accountBalances';
 
 describe('Financial Formatters', () => {
@@ -118,11 +118,67 @@ describe('Financial Calculations', () => {
       },
     ];
 
-    const spending = calculateCategorySpending(transactions, categories, budgets, today, today);
+    const spending = calculateCategorySpending(transactions, categories, budgets, today, today, true);
     expect(spending.length).toBe(1);
     expect(spending[0].spent).toBe(450);
     expect(spending[0].percentageOfBudget).toBe(90);
     expect(spending[0].status).toBe('warning'); // 90% is above 80% threshold
+  });
+
+  it('calculates account-specific budgets properly (e.g. Neo bank vs Krom bank for same category)', () => {
+    const categories: Category[] = [
+      { id: 'cat_shopping', name: 'Shopping', type: 'expense', icon: 'ShoppingBag', color: '#ec4899' },
+    ];
+    const accounts: Account[] = [
+      { id: 'acc_neo', name: 'Neo Bank', type: 'bank', balance: 5000000, currency: 'IDR', color: '#f59e0b' },
+      { id: 'acc_krom', name: 'Krom Bank', type: 'bank', balance: 3000000, currency: 'IDR', color: '#6366f1' },
+    ];
+    const budgets: Budget[] = [
+      { id: 'b_neo', categoryId: 'cat_shopping', accountId: 'acc_neo', amount: 2500000, period: 'monthly', alertThreshold: 80 },
+      { id: 'b_krom', categoryId: 'cat_shopping', accountId: 'acc_krom', amount: 1000000, period: 'monthly', alertThreshold: 80 },
+    ];
+    const transactions: Transaction[] = [
+      {
+        id: 'tx_neo_1',
+        type: 'expense',
+        amount: 2000000,
+        categoryId: 'cat_shopping',
+        accountId: 'acc_neo',
+        date: '2026-09-05',
+        merchant: 'Shopping at Store A',
+        createdAt: '2026-09-05T10:00:00.000Z',
+      },
+      {
+        id: 'tx_krom_1',
+        type: 'expense',
+        amount: 500000,
+        categoryId: 'cat_shopping',
+        accountId: 'acc_krom',
+        date: '2026-09-10',
+        merchant: 'Shopping at Store B',
+        createdAt: '2026-09-10T10:00:00.000Z',
+      },
+    ];
+
+    const spending = calculateCategorySpending(transactions, categories, budgets, '2026-09-01', '2026-09-30', true, accounts);
+
+    expect(spending).toHaveLength(2);
+    const neoBudget = spending.find((s) => s.accountId === 'acc_neo');
+    const kromBudget = spending.find((s) => s.accountId === 'acc_krom');
+
+    expect(neoBudget).toBeDefined();
+    expect(neoBudget?.spent).toBe(2000000);
+    expect(neoBudget?.budgetLimit).toBe(2500000);
+    expect(neoBudget?.percentageOfBudget).toBe(80);
+    expect(neoBudget?.accountName).toBe('Neo Bank');
+    expect(neoBudget?.status).toBe('warning'); // 80% hits alert threshold
+
+    expect(kromBudget).toBeDefined();
+    expect(kromBudget?.spent).toBe(500000);
+    expect(kromBudget?.budgetLimit).toBe(1000000);
+    expect(kromBudget?.percentageOfBudget).toBe(50);
+    expect(kromBudget?.accountName).toBe('Krom Bank');
+    expect(kromBudget?.status).toBe('healthy');
   });
 
   it('retains configured category budgets with no spending for the period', () => {

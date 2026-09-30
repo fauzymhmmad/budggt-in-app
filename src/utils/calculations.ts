@@ -1,4 +1,4 @@
-import { Budget, Category, FinancialInsight, SavingsGoal, Subscription, Transaction } from '../types/finance';
+import { Account, Budget, Category, FinancialInsight, SavingsGoal, Subscription, Transaction } from '../types/finance';
 
 export interface MonthlySummary {
   totalIncome: number;
@@ -10,15 +10,18 @@ export interface MonthlySummary {
 }
 
 export interface CategorySpending {
+  budgetId?: string;
   categoryId: string;
   categoryName: string;
+  accountId?: string;
+  accountName?: string;
   color: string;
   icon: string;
   spent: number;
   budgetLimit?: number;
   percentageOfTotal: number;
   percentageOfBudget?: number;
-  status: 'healthy' | 'warning' | 'exceeded';
+  status?: 'healthy' | 'warning' | 'exceeded';
 }
 
 function padZero(n: number): string {
@@ -128,6 +131,7 @@ export function calculateCategorySpending(
   startDate?: string,
   endDate?: string,
   includeBudgetedCategories = false,
+  accounts: Account[] = [],
 ): CategorySpending[] {
   const range = startDate && endDate ? { startDate, endDate } : getCurrentMonthDateRange();
   const monthlyTxs = filterTransactionsByDateRange(transactions, range.startDate, range.endDate);
@@ -135,30 +139,80 @@ export function calculateCategorySpending(
   const categoryMap = new Map<string, Category>();
   categories.forEach((cat) => categoryMap.set(cat.id, cat));
 
-  const budgetMap = new Map<string, Budget>();
-  budgets.forEach((bgt) => budgetMap.set(bgt.categoryId, bgt));
+  const accountMap = new Map<string, Account>();
+  accounts.forEach((acc) => accountMap.set(acc.id, acc));
 
-  const spentMap = new Map<string, number>();
   let totalExpenses = 0;
-
   monthlyTxs.forEach((tx) => {
     if (tx.type === 'expense') {
-      const current = spentMap.get(tx.categoryId) || 0;
-      spentMap.set(tx.categoryId, current + tx.amount);
       totalExpenses += tx.amount;
     }
   });
 
-  const results: CategorySpending[] = [];
-  // A budget can remain visible even when there have been no matching expenses
-  // during the selected period. This is opt-in so spending charts continue to
-  // show only categories that have actual spending.
-  const categoryIds = includeBudgetedCategories
-    ? new Set([...spentMap.keys(), ...budgetMap.keys()])
-    : new Set(spentMap.keys());
+  if (includeBudgetedCategories) {
+    const results: CategorySpending[] = [];
 
-  categoryIds.forEach((categoryId) => {
-    const spent = spentMap.get(categoryId) || 0;
+    // Process each configured budget
+    budgets.forEach((budget) => {
+      const cat = categoryMap.get(budget.categoryId) || {
+        id: budget.categoryId,
+        name: 'Uncategorized',
+        type: 'expense',
+        icon: 'Tag',
+        color: '#94a3b8',
+      };
+      const acc = budget.accountId ? accountMap.get(budget.accountId) : undefined;
+
+      const matchingTxs = monthlyTxs.filter(
+        (tx) =>
+          tx.type === 'expense' &&
+          tx.categoryId === budget.categoryId &&
+          (!budget.accountId || tx.accountId === budget.accountId)
+      );
+      const spent = matchingTxs.reduce((sum, tx) => sum + tx.amount, 0);
+
+      const percentageOfTotal = totalExpenses > 0 ? (spent / totalExpenses) * 100 : 0;
+      const percentageOfBudget = budget.amount > 0 ? (spent / budget.amount) * 100 : undefined;
+
+      let status: 'healthy' | 'warning' | 'exceeded' = 'healthy';
+      if (percentageOfBudget !== undefined) {
+        if (percentageOfBudget >= 100) {
+          status = 'exceeded';
+        } else if (percentageOfBudget >= (budget.alertThreshold || 80)) {
+          status = 'warning';
+        }
+      }
+
+      results.push({
+        budgetId: budget.id,
+        categoryId: budget.categoryId,
+        categoryName: cat.name,
+        accountId: budget.accountId,
+        accountName: acc?.name,
+        color: cat.color,
+        icon: cat.icon,
+        spent,
+        budgetLimit: budget.amount,
+        percentageOfTotal,
+        percentageOfBudget,
+        status,
+      });
+    });
+
+    return results;
+  }
+
+  // General aggregation by category
+  const spentMap = new Map<string, number>();
+  monthlyTxs.forEach((tx) => {
+    if (tx.type === 'expense') {
+      const current = spentMap.get(tx.categoryId) || 0;
+      spentMap.set(tx.categoryId, current + tx.amount);
+    }
+  });
+
+  const results: CategorySpending[] = [];
+  spentMap.forEach((spent, categoryId) => {
     const cat = categoryMap.get(categoryId) || {
       id: categoryId,
       name: 'Uncategorized',
@@ -166,33 +220,17 @@ export function calculateCategorySpending(
       icon: 'Tag',
       color: '#94a3b8',
     };
-    const budget = budgetMap.get(categoryId);
     const percentageOfTotal = totalExpenses > 0 ? (spent / totalExpenses) * 100 : 0;
-    const percentageOfBudget = budget && budget.amount > 0 ? (spent / budget.amount) * 100 : undefined;
-
-    let status: 'healthy' | 'warning' | 'exceeded' = 'healthy';
-    if (percentageOfBudget !== undefined) {
-      if (percentageOfBudget >= 100) {
-        status = 'exceeded';
-      } else if (percentageOfBudget >= (budget?.alertThreshold || 80)) {
-        status = 'warning';
-      }
-    }
-
     results.push({
       categoryId,
       categoryName: cat.name,
       color: cat.color,
       icon: cat.icon,
       spent,
-      budgetLimit: budget?.amount,
       percentageOfTotal,
-      percentageOfBudget,
-      status,
     });
   });
 
-  // Sort by highest spent
   return results.sort((a, b) => b.spent - a.spent);
 }
 

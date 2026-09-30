@@ -1,10 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Plus, PieChart, Sparkles } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { useTranslation } from '../../hooks/useTranslation';
-import { calculateCategorySpending, filterTransactionsByDateRange, getMonthDateRange } from '../../utils/calculations';
+import { calculateCategorySpending, filterTransactionsByDateRange, getMonthDateRange, CategorySpending } from '../../utils/calculations';
 import { BudgetCard } from './BudgetCard';
-import { BudgetModal } from './BudgetModal';
+import { BudgetModal, BudgetEditTarget } from './BudgetModal';
 import { Category, Transaction } from '../../types/finance';
 import { formatCurrency, formatPercentage } from '../../utils/formatters';
 import { MonthSelector } from '../ui/MonthSelector';
@@ -14,9 +14,10 @@ interface BudgetSummaryProps {
 }
 
 export const BudgetSummary: React.FC<BudgetSummaryProps> = ({ onEditTransaction }) => {
-  const { transactions, categories, budgets, deleteBudget, settings, selectedMonth } = useFinance();
+  const { transactions, categories, accounts, budgets, deleteBudget, settings, selectedMonth } = useFinance();
   const { t } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [budgetToEdit, setBudgetToEdit] = useState<BudgetEditTarget | null>(null);
   const [categoryToEdit, setCategoryToEdit] = useState<Category | null>(null);
 
   const budgetPeriod = useMemo(
@@ -32,24 +33,30 @@ export const BudgetSummary: React.FC<BudgetSummaryProps> = ({ onEditTransaction 
       budgetPeriod.startDate,
       budgetPeriod.endDate,
       true,
+      accounts,
     );
-  }, [transactions, categories, budgets, budgetPeriod]);
+  }, [transactions, categories, budgets, budgetPeriod, accounts]);
 
-  const budgetTransactionsByCategory = useMemo(() => {
-    const transactionsByCategory = new Map<string, Transaction[]>();
-    filterTransactionsByDateRange(transactions, budgetPeriod.startDate, budgetPeriod.endDate)
-      .filter((transaction) => transaction.type === 'expense')
-      .forEach((transaction) => {
-        const categoryTransactions = transactionsByCategory.get(transaction.categoryId) || [];
-        categoryTransactions.push(transaction);
-        transactionsByCategory.set(transaction.categoryId, categoryTransactions);
-      });
-
-    transactionsByCategory.forEach((categoryTransactions) => {
-      categoryTransactions.sort((a, b) => b.date.localeCompare(a.date));
-    });
-    return transactionsByCategory;
+  const periodTransactions = useMemo(() => {
+    return filterTransactionsByDateRange(
+      transactions,
+      budgetPeriod.startDate,
+      budgetPeriod.endDate
+    ).filter((transaction) => transaction.type === 'expense');
   }, [transactions, budgetPeriod]);
+
+  const getTransactionsForBudget = useCallback(
+    (item: CategorySpending) => {
+      return periodTransactions
+        .filter(
+          (tx) =>
+            tx.categoryId === item.categoryId &&
+            (!item.accountId || tx.accountId === item.accountId)
+        )
+        .sort((a, b) => b.date.localeCompare(a.date));
+    },
+    [periodTransactions]
+  );
 
   const budgetedList = spendingList.filter((item) => (item.budgetLimit || 0) > 0);
   const unbudgetedCategories = categories.filter(
@@ -61,8 +68,22 @@ export const BudgetSummary: React.FC<BudgetSummaryProps> = ({ onEditTransaction 
   const totalRemaining = totalBudgeted - totalSpentInBudgets;
   const overallUtilization = totalBudgeted > 0 ? (totalSpentInBudgets / totalBudgeted) * 100 : 0;
 
-  const handleOpenSetBudget = (category?: Category) => {
+  const handleOpenCreateBudget = (category?: Category) => {
+    setBudgetToEdit(null);
     setCategoryToEdit(category || null);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditBudget = (item: CategorySpending) => {
+    const matchingBudget = budgets.find((b) => b.id === item.budgetId);
+    setBudgetToEdit({
+      id: item.budgetId,
+      categoryId: item.categoryId,
+      accountId: item.accountId,
+      amount: item.budgetLimit || 0,
+      alertThreshold: matchingBudget?.alertThreshold || 80,
+    });
+    setCategoryToEdit(null);
     setIsModalOpen(true);
   };
 
@@ -77,7 +98,7 @@ export const BudgetSummary: React.FC<BudgetSummaryProps> = ({ onEditTransaction 
         <div className="flex flex-wrap items-center gap-2.5">
           <MonthSelector />
           <button
-            onClick={() => handleOpenSetBudget()}
+            onClick={() => handleOpenCreateBudget()}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 active:scale-95 transition-all"
           >
             <Plus className="w-4 h-4" />
@@ -119,7 +140,11 @@ export const BudgetSummary: React.FC<BudgetSummaryProps> = ({ onEditTransaction 
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
             {t('totalPoolRemaining')}
           </span>
-          <div className={`text-xl font-bold font-mono mt-1 ${totalRemaining >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+          <div
+            className={`text-xl font-bold font-mono mt-1 ${
+              totalRemaining >= 0 ? 'text-emerald-500' : 'text-rose-500'
+            }`}
+          >
             {formatCurrency(totalRemaining, settings.currency, settings.privacyMode)}
           </div>
           <div className="text-xs text-slate-400 mt-1">
@@ -135,7 +160,7 @@ export const BudgetSummary: React.FC<BudgetSummaryProps> = ({ onEditTransaction 
           <h4 className="text-base font-bold text-slate-900 dark:text-white">{t('noBudgetsCreated')}</h4>
           <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1 mb-4">{t('noBudgetsDesc')}</p>
           <button
-            onClick={() => handleOpenSetBudget()}
+            onClick={() => handleOpenCreateBudget()}
             className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-600/20"
           >
             {t('createFirstBudget')}
@@ -144,17 +169,18 @@ export const BudgetSummary: React.FC<BudgetSummaryProps> = ({ onEditTransaction 
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {budgetedList.map((item) => {
-            const cat = categories.find((c) => c.id === item.categoryId);
+            const itemKey = item.budgetId || `${item.categoryId}_${item.accountId || 'all'}`;
             return (
               <BudgetCard
-                key={item.categoryId}
+                key={itemKey}
                 item={item}
-                transactions={budgetTransactionsByCategory.get(item.categoryId) || []}
-                onEdit={() => handleOpenSetBudget(cat)}
+                transactions={getTransactionsForBudget(item)}
+                onEdit={() => handleOpenEditBudget(item)}
                 onEditTransaction={onEditTransaction}
                 onDelete={() => {
-                  if (window.confirm(`${t('removeBudgetConfirm')} ${item.categoryName}?`)) {
-                    deleteBudget(item.categoryId);
+                  const accLabel = item.accountName ? ` (${item.accountName})` : '';
+                  if (window.confirm(`${t('removeBudgetConfirm')} ${item.categoryName}${accLabel}?`)) {
+                    deleteBudget(item.budgetId || item.categoryId);
                   }
                 }}
               />
@@ -177,7 +203,7 @@ export const BudgetSummary: React.FC<BudgetSummaryProps> = ({ onEditTransaction 
             {unbudgetedCategories.map((c) => (
               <button
                 key={c.id}
-                onClick={() => handleOpenSetBudget(c)}
+                onClick={() => handleOpenCreateBudget(c)}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:border-emerald-500 text-xs font-medium text-slate-700 dark:text-slate-300 transition-all active:scale-95 group"
               >
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color }} />
@@ -193,6 +219,7 @@ export const BudgetSummary: React.FC<BudgetSummaryProps> = ({ onEditTransaction 
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         categoryToBudget={categoryToEdit}
+        budgetToEdit={budgetToEdit}
       />
     </div>
   );

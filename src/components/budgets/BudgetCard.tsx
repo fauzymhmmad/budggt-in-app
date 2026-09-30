@@ -54,10 +54,21 @@ export const BudgetCard: React.FC<BudgetCardProps> = ({
               {item.categoryName.substring(0, 1).toUpperCase()}
             </div>
             <div>
-              <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                {item.categoryName}
-              </h4>
-              <p className="text-xs text-slate-400">
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                  {item.categoryName}
+                </h4>
+                {item.accountName ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                    🏦 {item.accountName}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                    🌐 {t('allAccountsBudget') || 'Semua Akun'}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
                 {t('monthlyLimit')} {formatCurrency(limit, settings.currency, settings.privacyMode)}
               </p>
             </div>

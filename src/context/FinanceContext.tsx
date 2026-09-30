@@ -58,8 +58,14 @@ interface FinanceContextType {
   updateTransaction: (id: string, tx: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void; duplicateTransaction: (id: string) => void;
   batchDeleteTransactions: (ids: string[]) => void;
-  setBudget: (categoryId: string, amount: number, alertThreshold?: number) => void;
-  deleteBudget: (categoryId: string) => void;
+  setBudget: (
+    categoryId: string,
+    amount: number,
+    alertThreshold?: number,
+    accountId?: string,
+    budgetId?: string
+  ) => void;
+  deleteBudget: (budgetIdOrCategoryId: string) => void;
   addGoal: (goal: Omit<SavingsGoal, 'id' | 'createdAt'>) => void;
   updateGoal: (id: string, goal: Partial<SavingsGoal>) => void; deleteGoal: (id: string) => void;
   depositToGoal: (goalId: string, amount: number, sourceAccountId?: string) => void;
@@ -362,16 +368,68 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     playDelete(settings.soundEnabled);
   }, [settings.soundEnabled, transactions]);
 
-  const setBudget = useCallback((categoryId: string, amount: number, alertThreshold = 80) => {
+  const setBudget = useCallback((
+    categoryId: string,
+    amount: number,
+    alertThreshold = 80,
+    accountId?: string,
+    budgetId?: string,
+  ) => {
+    const normalizedAccountId = accountId && accountId !== 'all' ? accountId : undefined;
     setBudgets((prev) => {
-      const index = prev.findIndex((budget) => budget.categoryId === categoryId);
-      if (index >= 0) { const next = [...prev]; next[index] = { ...next[index], amount, alertThreshold }; return next; }
-      return [...prev, { id: `bgt_${Math.random().toString(36).substring(2, 9)}`, categoryId, amount, period: 'monthly', alertThreshold }];
+      if (budgetId) {
+        const idx = prev.findIndex((budget) => budget.id === budgetId);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = {
+            ...next[idx],
+            categoryId,
+            accountId: normalizedAccountId,
+            amount,
+            alertThreshold,
+          };
+          return next;
+        }
+      }
+      const index = prev.findIndex(
+        (budget) =>
+          budget.categoryId === categoryId &&
+          (budget.accountId || '') === (normalizedAccountId || '')
+      );
+      if (index >= 0) {
+        const next = [...prev];
+        next[index] = {
+          ...next[index],
+          amount,
+          alertThreshold,
+          accountId: normalizedAccountId,
+        };
+        return next;
+      }
+      return [
+        ...prev,
+        {
+          id: `bgt_${Math.random().toString(36).substring(2, 9)}`,
+          categoryId,
+          accountId: normalizedAccountId,
+          amount,
+          period: 'monthly',
+          alertThreshold,
+        },
+      ];
     });
     playSuccess(settings.soundEnabled);
   }, [settings.soundEnabled]);
-  const deleteBudget = useCallback((categoryId: string) => {
-    setBudgets((prev) => prev.filter((budget) => budget.categoryId !== categoryId)); playDelete(settings.soundEnabled);
+
+  const deleteBudget = useCallback((budgetIdOrCategoryId: string) => {
+    setBudgets((prev) =>
+      prev.filter(
+        (budget) =>
+          budget.id !== budgetIdOrCategoryId &&
+          budget.categoryId !== budgetIdOrCategoryId
+      )
+    );
+    playDelete(settings.soundEnabled);
   }, [settings.soundEnabled]);
 
   const addGoal = useCallback((goal: Omit<SavingsGoal, 'id' | 'createdAt'>) => {
