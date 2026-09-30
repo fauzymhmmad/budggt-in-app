@@ -9,7 +9,7 @@ export interface FilterState {
   type: TransactionType | 'all';
   categoryId: string;
   accountId: string;
-  dateRange: 'all' | 'this_month' | 'last_30' | 'last_90' | 'this_year';
+  dateRange: 'all' | 'selected_month' | 'this_month' | 'last_30' | 'last_90' | 'this_year';
   sortBy: 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc' | 'merchant_asc';
 }
 
@@ -108,6 +108,7 @@ export const TransactionFilters: React.FC<TransactionFiltersProps> = ({
           className="w-full text-xs py-2 px-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 cursor-pointer"
         >
           <option value="all">{t('allTime')}</option>
+          <option value="selected_month">{t('selectedPeriod')}</option>
           <option value="this_month">{t('thisMonth')}</option>
           <option value="last_30">{t('last30Days')}</option>
           <option value="last_90">{t('last90Days')}</option>

@@ -21,24 +21,45 @@ export interface CategorySpending {
   status: 'healthy' | 'warning' | 'exceeded';
 }
 
-export function getCurrentMonthDateRange(startDay: number = 1): { startDate: string; endDate: string } {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
+function padZero(n: number): string {
+  return String(n).padStart(2, '0');
+}
 
-  const start = new Date(year, month, startDay);
-  if (now.getDate() < startDay) {
-    start.setMonth(start.getMonth() - 1);
+function formatDateLocal(d: Date): string {
+  return `${d.getFullYear()}-${padZero(d.getMonth() + 1)}-${padZero(d.getDate())}`;
+}
+
+export function getMonthDateRange(
+  yearMonth?: string,
+  startDay: number = 1
+): { startDate: string; endDate: string } {
+  let year: number;
+  let month: number; // 0-indexed
+
+  if (yearMonth && /^\d{4}-\d{2}$/.test(yearMonth)) {
+    const [y, m] = yearMonth.split('-').map(Number);
+    year = y;
+    month = m - 1;
+  } else {
+    const now = new Date();
+    year = now.getFullYear();
+    month = now.getMonth();
+    if (now.getDate() < startDay) {
+      month -= 1;
+    }
   }
 
-  const end = new Date(start);
-  end.setMonth(end.getMonth() + 1);
-  end.setDate(end.getDate() - 1);
+  const start = new Date(year, month, startDay);
+  const end = new Date(year, month + 1, startDay - 1);
 
   return {
-    startDate: start.toISOString().split('T')[0],
-    endDate: end.toISOString().split('T')[0],
+    startDate: formatDateLocal(start),
+    endDate: formatDateLocal(end),
   };
+}
+
+export function getCurrentMonthDateRange(startDay: number = 1): { startDate: string; endDate: string } {
+  return getMonthDateRange(undefined, startDay);
 }
 
 export function filterTransactionsByDateRange(
@@ -72,8 +93,23 @@ export function calculateMonthlySummary(
   const savingsRate = totalIncome > 0 ? (netSavings / totalIncome) * 100 : 0;
 
   const now = new Date();
-  const currentDay = Math.max(1, now.getDate());
-  const dailyAverageExpense = totalExpense / currentDay;
+  const todayStr = formatDateLocal(now);
+  let divisor = 1;
+  if (range.startDate <= todayStr && todayStr <= range.endDate) {
+    const start = new Date(range.startDate);
+    const today = new Date(todayStr);
+    const diffDays = Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    divisor = Math.max(1, diffDays);
+  } else if (range.endDate < todayStr) {
+    const start = new Date(range.startDate);
+    const end = new Date(range.endDate);
+    const diffDays = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    divisor = Math.max(1, diffDays);
+  } else {
+    divisor = 0;
+  }
+
+  const dailyAverageExpense = divisor > 0 ? totalExpense / divisor : 0;
 
   return {
     totalIncome,

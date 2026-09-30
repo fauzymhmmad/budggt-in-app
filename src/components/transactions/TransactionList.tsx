@@ -18,6 +18,8 @@ import { Transaction } from '../../types/finance';
 import { TransactionFilters, FilterState } from './TransactionFilters';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { exportTransactionsToCSV } from '../../utils/exportImport';
+import { getMonthDateRange } from '../../utils/calculations';
+import { MonthSelector } from '../ui/MonthSelector';
 
 interface TransactionListProps {
   onOpenNewTransaction: () => void;
@@ -36,6 +38,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
     duplicateTransaction,
     batchDeleteTransactions,
     settings,
+    selectedMonth,
   } = useFinance();
   const { t } = useTranslation();
 
@@ -76,7 +79,10 @@ export const TransactionList: React.FC<TransactionListProps> = ({
         if (filters.dateRange !== 'all') {
           const now = new Date();
           const txDate = new Date(tx.date + 'T00:00:00');
-          if (filters.dateRange === 'this_month') {
+          if (filters.dateRange === 'selected_month') {
+            const range = getMonthDateRange(selectedMonth, settings.startOfMonthDay);
+            if (tx.date < range.startDate || tx.date > range.endDate) return false;
+          } else if (filters.dateRange === 'this_month') {
             if (txDate.getMonth() !== now.getMonth() || txDate.getFullYear() !== now.getFullYear())
               return false;
           } else if (filters.dateRange === 'last_30') {
@@ -191,6 +197,15 @@ export const TransactionList: React.FC<TransactionListProps> = ({
           })
         }
       />
+
+      {filters.dateRange === 'selected_month' && (
+        <div className="flex items-center justify-between p-3 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 text-xs">
+          <span className="text-slate-600 dark:text-slate-300 font-medium">
+            {t('showingDataFor') || 'Showing data for'}:
+          </span>
+          <MonthSelector />
+        </div>
+      )}
 
       {/* Batch Operations Floating Bar */}
       {selectedIds.length > 0 && (

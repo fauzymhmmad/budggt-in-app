@@ -1,17 +1,22 @@
 import React, { useState, useMemo } from 'react';
 import { useFinance } from '../../context/FinanceContext';
 import { useTranslation } from '../../hooks/useTranslation';
-import { calculateCategorySpending } from '../../utils/calculations';
+import { calculateCategorySpending, getMonthDateRange } from '../../utils/calculations';
 import { formatCurrency, formatPercentage } from '../../utils/formatters';
 
 export const CategoryChart: React.FC = () => {
-  const { transactions, categories, budgets, settings, setActiveTab } = useFinance();
+  const { transactions, categories, budgets, settings, selectedMonth, setActiveTab } = useFinance();
   const { t } = useTranslation();
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
+  const dateRange = useMemo(
+    () => getMonthDateRange(selectedMonth, settings.startOfMonthDay),
+    [selectedMonth, settings.startOfMonthDay]
+  );
+
   const spendingList = useMemo(() => {
-    return calculateCategorySpending(transactions, categories, budgets);
-  }, [transactions, categories, budgets]);
+    return calculateCategorySpending(transactions, categories, budgets, dateRange.startDate, dateRange.endDate);
+  }, [transactions, categories, budgets, dateRange]);
 
   const totalSpent = useMemo(() => {
     return spendingList.reduce((acc, item) => acc + item.spent, 0);

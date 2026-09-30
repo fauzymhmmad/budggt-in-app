@@ -51,7 +51,9 @@ interface PendingSnapshot { userId: string; data: FinanceSnapshot; updatedAt: st
 interface FinanceContextType {
   transactions: Transaction[]; categories: Category[]; accounts: Account[]; budgets: Budget[];
   goals: SavingsGoal[]; subscriptions: Subscription[]; settings: AppSettings; activeTab: string;
-  syncStatus: SyncStatus; setActiveTab: (tab: string) => void;
+  syncStatus: SyncStatus; selectedMonth: string;
+  setActiveTab: (tab: string) => void;
+  setSelectedMonth: (month: string) => void;
   addTransaction: (tx: Omit<Transaction, 'id' | 'createdAt'>) => Transaction;
   updateTransaction: (id: string, tx: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void; duplicateTransaction: (id: string) => void;
@@ -148,7 +150,13 @@ const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs = 12_000): Pro
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const initialSnapshot = useMemo(readLocalSnapshot, []);
+  const getCurrentYearMonth = (): string => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  };
+
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentYearMonth);
   const [transactions, setTransactions] = useState<Transaction[]>(initialSnapshot.transactions);
   const [categories, setCategories] = useState<Category[]>(initialSnapshot.categories);
   const [accounts, setAccounts] = useState<Account[]>(initialSnapshot.accounts);
@@ -452,7 +460,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   if (!isHydrated) return <div className="min-h-screen grid place-items-center bg-slate-950 text-slate-300 text-sm">Loading your secure finance data…</div>;
 
   return <FinanceContext.Provider value={{
-    transactions, categories, accounts, budgets, goals, subscriptions, settings, activeTab, syncStatus, setActiveTab,
+    transactions, categories, accounts, budgets, goals, subscriptions, settings, activeTab, syncStatus, selectedMonth, setActiveTab, setSelectedMonth,
     addTransaction, updateTransaction, deleteTransaction, duplicateTransaction, batchDeleteTransactions,
     setBudget, deleteBudget, addGoal, updateGoal, deleteGoal, depositToGoal, withdrawFromGoal,
     addSubscription, updateSubscription, deleteSubscription, markSubscriptionPaid,

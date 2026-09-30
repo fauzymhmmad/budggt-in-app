@@ -2,25 +2,26 @@ import React, { useState, useMemo } from 'react';
 import { Plus, PieChart, Sparkles } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { useTranslation } from '../../hooks/useTranslation';
-import { calculateCategorySpending, filterTransactionsByDateRange, getCurrentMonthDateRange } from '../../utils/calculations';
+import { calculateCategorySpending, filterTransactionsByDateRange, getMonthDateRange } from '../../utils/calculations';
 import { BudgetCard } from './BudgetCard';
 import { BudgetModal } from './BudgetModal';
 import { Category, Transaction } from '../../types/finance';
 import { formatCurrency, formatPercentage } from '../../utils/formatters';
+import { MonthSelector } from '../ui/MonthSelector';
 
 interface BudgetSummaryProps {
   onEditTransaction: (transaction: Transaction) => void;
 }
 
 export const BudgetSummary: React.FC<BudgetSummaryProps> = ({ onEditTransaction }) => {
-  const { transactions, categories, budgets, deleteBudget, settings } = useFinance();
+  const { transactions, categories, budgets, deleteBudget, settings, selectedMonth } = useFinance();
   const { t } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [categoryToEdit, setCategoryToEdit] = useState<Category | null>(null);
 
   const budgetPeriod = useMemo(
-    () => getCurrentMonthDateRange(settings.startOfMonthDay),
-    [settings.startOfMonthDay],
+    () => getMonthDateRange(selectedMonth, settings.startOfMonthDay),
+    [selectedMonth, settings.startOfMonthDay],
   );
 
   const spendingList = useMemo(() => {
@@ -73,13 +74,16 @@ export const BudgetSummary: React.FC<BudgetSummaryProps> = ({ onEditTransaction 
           <h3 className="text-lg font-bold text-slate-900 dark:text-white">{t('monthlyBudgets')}</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400">{t('budgetsDescription')}</p>
         </div>
-        <button
-          onClick={() => handleOpenSetBudget()}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 active:scale-95 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          <span>{t('setCategoryBudget')}</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <MonthSelector />
+          <button
+            onClick={() => handleOpenSetBudget()}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 active:scale-95 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{t('setCategoryBudget')}</span>
+          </button>
+        </div>
       </div>
 
       {/* Overview Cards */}
