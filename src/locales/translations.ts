@@ -89,6 +89,11 @@ export const translations = {
     noTransactionsYet: 'No transactions yet. Click "+ Add" to record your first transaction.',
 
     // Transaction Ledger & Filters
+    selectedPeriod: 'Selected Period',
+    previousMonth: 'Previous Month',
+    nextMonth: 'Next Month',
+    resetToCurrentMonth: 'Back to This Month',
+    showingDataFor: 'Showing data for',
     addTransaction: 'Add Transaction',
     exportCsv: 'Export CSV',
     records: 'records',
@@ -559,6 +564,11 @@ export const translations = {
     noTransactionsYet: 'Belum ada transaksi. Klik "+ Tambah" untuk mencatat transaksi pertama Anda.',
 
     // Buku Kas & Filter
+    selectedPeriod: 'Periode Terpilih',
+    previousMonth: 'Bulan Sebelumnya',
+    nextMonth: 'Bulan Berikutnya',
+    resetToCurrentMonth: 'Kembali ke Bulan Ini',
+    showingDataFor: 'Menampilkan data untuk',
     addTransaction: 'Tambah Transaksi',
     exportCsv: 'Ekspor CSV',
     records: 'catatan',

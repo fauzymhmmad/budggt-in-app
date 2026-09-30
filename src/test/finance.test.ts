@@ -6,6 +6,7 @@ import {
   calculateCompoundInterest,
   calculateLoanPayoff,
   calculateCategorySpending,
+  getMonthDateRange,
 } from '../utils/calculations';
 import { Transaction, Category, Budget } from '../types/finance';
 import { applyAccountBalanceChanges, getAccountBalanceChanges } from '../utils/accountBalances';
@@ -142,6 +143,52 @@ describe('Financial Calculations', () => {
       expect.objectContaining({ categoryId: 'cat_food', spent: 0, budgetLimit: 500 }),
       expect.objectContaining({ categoryId: 'cat_groceries', spent: 0, budgetLimit: 300 }),
     ]));
+  });
+
+  it('correctly calculates and isolates income/expenses per month (e.g. September vs October reset)', () => {
+    const septemberRange = getMonthDateRange('2026-09');
+    expect(septemberRange.startDate).toBe('2026-09-01');
+    expect(septemberRange.endDate).toBe('2026-09-30');
+
+    const octoberRange = getMonthDateRange('2026-10');
+    expect(octoberRange.startDate).toBe('2026-10-01');
+    expect(octoberRange.endDate).toBe('2026-10-31');
+
+    const transactions: Transaction[] = [
+      {
+        id: 't_sep_1',
+        type: 'expense',
+        amount: 12000000,
+        categoryId: 'cat_rent',
+        accountId: 'acc1',
+        date: '2026-09-15',
+        merchant: 'September Expense',
+        createdAt: '2026-09-15T10:00:00.000Z',
+      },
+      {
+        id: 't_sep_2',
+        type: 'income',
+        amount: 20000000,
+        categoryId: 'cat_salary',
+        accountId: 'acc1',
+        date: '2026-09-01',
+        merchant: 'September Salary',
+        createdAt: '2026-09-01T10:00:00.000Z',
+      },
+    ];
+
+    // September summary
+    const sepSummary = calculateMonthlySummary(transactions, septemberRange.startDate, septemberRange.endDate);
+    expect(sepSummary.totalExpense).toBe(12000000);
+    expect(sepSummary.totalIncome).toBe(20000000);
+    expect(sepSummary.netSavings).toBe(8000000);
+
+    // October summary (no October transactions yet -> resets to 0)
+    const octSummary = calculateMonthlySummary(transactions, octoberRange.startDate, octoberRange.endDate);
+    expect(octSummary.totalExpense).toBe(0);
+    expect(octSummary.totalIncome).toBe(0);
+    expect(octSummary.netSavings).toBe(0);
+    expect(octSummary.transactionCount).toBe(0);
   });
 });
 

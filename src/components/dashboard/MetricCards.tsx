@@ -8,13 +8,22 @@ import {
 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { useTranslation } from '../../hooks/useTranslation';
-import { calculateMonthlySummary } from '../../utils/calculations';
+import { calculateMonthlySummary, getMonthDateRange } from '../../utils/calculations';
 import { formatCurrency, formatPercentage } from '../../utils/formatters';
 
 export const MetricCards: React.FC = () => {
-  const { transactions, accounts, settings } = useFinance();
+  const { transactions, accounts, settings, selectedMonth } = useFinance();
   const { t } = useTranslation();
-  const summary = calculateMonthlySummary(transactions);
+  
+  const dateRange = React.useMemo(
+    () => getMonthDateRange(selectedMonth, settings.startOfMonthDay),
+    [selectedMonth, settings.startOfMonthDay]
+  );
+  
+  const summary = React.useMemo(
+    () => calculateMonthlySummary(transactions, dateRange.startDate, dateRange.endDate),
+    [transactions, dateRange]
+  );
 
   const totalBalance = accounts.reduce((acc, a) => acc + a.balance, 0);
   const isPositiveSavings = summary.netSavings >= 0;
